@@ -20,6 +20,8 @@ class RepositorioConvocatorias(Protocol):
 
     def obtener_convocatoria(self, convocatoria_id: str) -> Convocatoria | None: ...
 
+    def obtener_por_url_origen(self, portal: str, url_origen: str) -> Convocatoria | None: ...
+
 
 @runtime_checkable
 class RepositorioMatches(Protocol):

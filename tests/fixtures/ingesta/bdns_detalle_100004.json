@@ -1,0 +1,40 @@
+{
+  "id": 5000004,
+  "organo": {
+    "nivel1": "OTROS",
+    "nivel2": "UNIVERSIDAD FICTICIA",
+    "nivel3": null
+  },
+  "sedeElectronica": null,
+  "codigoBDNS": "100004",
+  "fechaRecepcion": "2026-01-02",
+  "instrumentos": [{"descripcion": "SUBVENCIÓN Y ENTREGA DINERARIA SIN CONTRAPRESTACIÓN"}],
+  "tipoConvocatoria": "Concurrencia competitiva - canónica",
+  "presupuestoTotal": null,
+  "mrr": false,
+  "descripcion": "Convocatoria ficticia de una universidad para proyectos de investigación",
+  "descripcionLeng": null,
+  "tiposBeneficiarios": [],
+  "sectores": [],
+  "regiones": [
+    {"descripcion": "ES51 - CATALUÑA"},
+    {"descripcion": "ES52 - COMUNIDAD FICTICIA"}
+  ],
+  "descripcionFinalidad": "Educación",
+  "descripcionBasesReguladoras": null,
+  "urlBasesReguladoras": null,
+  "sePublicaDiarioOficial": false,
+  "abierto": false,
+  "fechaInicioSolicitud": null,
+  "fechaFinSolicitud": null,
+  "textInicio": null,
+  "textFin": null,
+  "ayudaEstado": null,
+  "urlAyudaEstado": null,
+  "fondos": [],
+  "reglamento": null,
+  "objetivos": [],
+  "sectoresProductos": [],
+  "documentos": [],
+  "anuncios": []
+}

@@ -130,6 +130,28 @@ def test_obtener_convocatoria_inexistente_devuelve_none(almacen):
     assert almacen.obtener_convocatoria("no-existe") is None
 
 
+def test_obtener_por_url_origen_roundtrip(almacen):
+    convocatoria = _convocatoria()
+    almacen.guardar_convocatoria(convocatoria)
+
+    encontrada = almacen.obtener_por_url_origen(
+        convocatoria.fuente.portal, convocatoria.fuente.url_origen
+    )
+
+    assert encontrada == convocatoria
+
+
+def test_obtener_por_url_origen_inexistente_devuelve_none(almacen):
+    assert almacen.obtener_por_url_origen("BOE", "https://no-existe.example") is None
+
+
+def test_obtener_por_url_origen_no_confunde_portales_distintos(almacen):
+    convocatoria = _convocatoria()
+    almacen.guardar_convocatoria(convocatoria)
+
+    assert almacen.obtener_por_url_origen("OTRO_PORTAL", convocatoria.fuente.url_origen) is None
+
+
 def test_roundtrip_match_con_asientos_y_transiciones(almacen):
     match = crear_match(
         match_id="match-contrato-1",

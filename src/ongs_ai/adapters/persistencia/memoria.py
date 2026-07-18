@@ -27,6 +27,13 @@ class AlmacenMemoria:
     def obtener_convocatoria(self, convocatoria_id: str) -> Convocatoria | None:
         return self._convocatorias.get(convocatoria_id)
 
+    def obtener_por_url_origen(self, portal: str, url_origen: str) -> Convocatoria | None:
+        """Clave natural de dedupe (ADR-001 §6.5): `portal`+`url_origen`."""
+        for convocatoria in self._convocatorias.values():
+            if convocatoria.fuente.portal == portal and convocatoria.fuente.url_origen == url_origen:
+                return convocatoria
+        return None
+
     # Matches — SIEMPRE filtrados por entidad_id ----------------------
     def guardar_match(self, match: Match) -> None:
         self._matches[match.match_id] = match

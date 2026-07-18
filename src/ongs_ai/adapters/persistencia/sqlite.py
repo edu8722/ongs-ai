@@ -58,6 +58,14 @@ _SCHEMA_VERSION = 1
 logger = logging.getLogger(__name__)
 
 
+def _migrar_columna_si_falta(cur: sqlite3.Cursor, tabla: str, columna: str, tipo_sql: str) -> None:
+    """ALTER TABLE idempotente (arquitectura CLAUDE.md): añade `columna` a `tabla`
+    solo si una base ya existente (creada antes de este cambio) no la tiene."""
+    columnas = {fila[1] for fila in cur.execute(f"PRAGMA table_info({tabla})").fetchall()}
+    if columna not in columnas:
+        cur.execute(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo_sql}")
+
+
 def _codificar_json(obj: object) -> str:
     if isinstance(obj, Enum):
         return obj.value
@@ -214,7 +222,14 @@ class AlmacenSQLite:
         )
         cur.execute(
             "CREATE TABLE IF NOT EXISTS convocatorias ("
-            "convocatoria_id TEXT PRIMARY KEY, datos_json TEXT NOT NULL)"
+            "convocatoria_id TEXT PRIMARY KEY, portal TEXT, url_origen TEXT, "
+            "datos_json TEXT NOT NULL)"
+        )
+        _migrar_columna_si_falta(cur, "convocatorias", "portal", "TEXT")
+        _migrar_columna_si_falta(cur, "convocatorias", "url_origen", "TEXT")
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS ix_convocatorias_portal_url_origen "
+            "ON convocatorias(portal, url_origen)"
         )
         cur.execute(
             "CREATE TABLE IF NOT EXISTS matches ("
@@ -272,9 +287,17 @@ class AlmacenSQLite:
             asdict(convocatoria), default=_codificar_json, ensure_ascii=False
         )
         self._conn.execute(
-            "INSERT INTO convocatorias (convocatoria_id, datos_json) VALUES (?, ?) "
-            "ON CONFLICT(convocatoria_id) DO UPDATE SET datos_json = excluded.datos_json",
-            (convocatoria.convocatoria_id, payload),
+            "INSERT INTO convocatorias (convocatoria_id, portal, url_origen, datos_json) "
+            "VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(convocatoria_id) DO UPDATE SET "
+            "portal = excluded.portal, url_origen = excluded.url_origen, "
+            "datos_json = excluded.datos_json",
+            (
+                convocatoria.convocatoria_id,
+                convocatoria.fuente.portal,
+                convocatoria.fuente.url_origen,
+                payload,
+            ),
         )
         self._conn.commit()
 
@@ -287,6 +310,20 @@ class AlmacenSQLite:
             return None
         return self._decodificar(
             "convocatoria", convocatoria_id, _convocatoria_desde_dict, json.loads(fila[0])
+        )
+
+    def obtener_por_url_origen(self, portal: str, url_origen: str) -> Convocatoria | None:
+        """Clave natural de dedupe (ADR-001 §6.5): `portal`+`url_origen`."""
+        fila = self._conn.execute(
+            "SELECT convocatoria_id, datos_json FROM convocatorias "
+            "WHERE portal = ? AND url_origen = ?",
+            (portal, url_origen),
+        ).fetchone()
+        if fila is None:
+            return None
+        convocatoria_id, datos_json = fila
+        return self._decodificar(
+            "convocatoria", convocatoria_id, _convocatoria_desde_dict, json.loads(datos_json)
         )
 
     # Matches — SIEMPRE filtrados por entidad_id ------------------------

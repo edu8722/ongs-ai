@@ -1,0 +1,40 @@
+{
+  "id": 5000002,
+  "organo": {
+    "nivel1": "AUTONOMICA",
+    "nivel2": "CATALUÑA FICTICIA",
+    "nivel3": "DEPARTAMENTO FICTICIO DE BIENESTAR SOCIAL"
+  },
+  "sedeElectronica": null,
+  "codigoBDNS": "100002",
+  "fechaRecepcion": "2026-02-01",
+  "instrumentos": [{"descripcion": "SUBVENCIÓN Y ENTREGA DINERARIA SIN CONTRAPRESTACIÓN"}],
+  "tipoConvocatoria": "Concurrencia competitiva - canónica",
+  "presupuestoTotal": 250000,
+  "mrr": false,
+  "descripcion": "Convocatoria ficticia autonómica para asociaciones de pacientes",
+  "descripcionLeng": null,
+  "tiposBeneficiarios": [
+    {"descripcion": "PERSONAS JURÍDICAS QUE NO DESARROLLAN ACTIVIDAD ECONÓMICA"},
+    {"descripcion": "ASOCIACIONES DECLARADAS DE UTILIDAD PÚBLICA"}
+  ],
+  "sectores": [{"descripcion": "ACTIVIDADES SANITARIAS Y DE SERVICIOS SOCIALES", "codigo": "R"}],
+  "regiones": [{"descripcion": "ES51 - CATALUÑA"}],
+  "descripcionFinalidad": "Sanidad",
+  "descripcionBasesReguladoras": "Orden ficticia por la que se aprueban las bases reguladoras",
+  "urlBasesReguladoras": "https://www.example-ficticio.gencat-ficticio.cat/bases",
+  "sePublicaDiarioOficial": true,
+  "abierto": false,
+  "fechaInicioSolicitud": "2026-02-01",
+  "fechaFinSolicitud": "2026-03-15",
+  "textInicio": "A partir del día siguiente a la publicación",
+  "textFin": "Cuarenta y dos días naturales",
+  "ayudaEstado": null,
+  "urlAyudaEstado": null,
+  "fondos": [],
+  "reglamento": null,
+  "objetivos": [],
+  "sectoresProductos": [],
+  "documentos": [],
+  "anuncios": []
+}

@@ -1,0 +1,33 @@
+{
+  "content": [
+    {
+      "id": 5000004,
+      "mrr": false,
+      "numeroConvocatoria": "100004",
+      "descripcion": "Convocatoria ficticia de una universidad para proyectos de investigación",
+      "descripcionLeng": null,
+      "fechaRecepcion": "2026-01-02",
+      "nivel1": "OTROS",
+      "nivel2": "UNIVERSIDAD FICTICIA",
+      "nivel3": null,
+      "codigoInvente": null
+    }
+  ],
+  "pageable": {
+    "sort": {"sorted": true, "unsorted": false, "empty": false},
+    "pageNumber": 1,
+    "pageSize": 3,
+    "offset": 3,
+    "unpaged": false,
+    "paged": true
+  },
+  "last": true,
+  "totalPages": 2,
+  "totalElements": 4,
+  "first": false,
+  "sort": {"sorted": true, "unsorted": false, "empty": false},
+  "numberOfElements": 1,
+  "size": 3,
+  "number": 1,
+  "empty": false
+}

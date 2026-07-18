@@ -5,3 +5,4 @@ __pycache__/
 .pytest_cache/
 clientes/
 !.claude/agents/
+investigacion/asociaciones*

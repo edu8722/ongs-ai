@@ -2,6 +2,17 @@
 
 ## Semana 2026-07-13/19
 
+- **PROMPT-007 — F3: guardarraíl determinista + capa IA explicativa** (Sonnet) —
+  **HECHO fc04348, APROBADO (auditoría del arquitecto), 101 tests. F3 CERRADA.**
+  `elegibilidad.py` (6 reglas puras, no-evaluable ⇒ no elegible, detalle línea a
+  línea), `matching.py` (detectar_matches con ids/reloj inyectados, Protocol de
+  dominio propio), `ia/explicacion_match.py` (Protocol + ExplicadorStub; la IA
+  degrada limpia, jamás decide). Hallazgo de auditoría: el contrato ADR-001 tiene
+  redundancia de ámbito (`ambito_geografico`+region/provincia vs
+  `requisitos_elegibilidad.ambito_territorial_requerido`, hoy sin consumir) →
+  candidato ADR-003. Nota de diseño para F4: detectar_matches crea Match para TODA
+  pareja (literal del prompt) — la política de persistencia/filtrado se decide en
+  F4 (no persistir pares no elegibles a escala BDNS).
 - **PROMPT-006 — ADR-002: Entidad gana forma jurídica y fecha de constitución**
   (Sonnet) — **HECHO e97baa5, APROBADO (auditoría del arquitecto), 63 tests.**
   Nota de proceso: la sesión escribió aquí "APROBADO" por su cuenta y sin hash antes

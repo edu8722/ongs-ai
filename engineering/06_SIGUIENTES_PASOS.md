@@ -67,9 +67,12 @@ siguiente acción según este documento.
   adapters, anti-fuga y round-trip parametrizados, degradación limpia. Detalle en
   histórico. Estado de fases: F1 ✔ · F2 bloqueada (lista de portales) · F3 siguiente
   tras ADR-002 · F4/F5 lejos.
-- **ADR-002 CERRADO Y AUDITADO — HECHO e97baa5, 63 tests (2026-07-18):** `Entidad`
-  gana `forma_juridica` y `fecha_constitucion` + `normalizar_forma_juridica`
-  determinista. Detalle en histórico. **F3 desbloqueada → PROMPT-007 EN COLA.**
+- **F3 CERRADA Y AUDITADA — HECHO fc04348, 101 tests (2026-07-18 noche):**
+  guardarraíl determinista + matching + capa IA con degradación limpia. Detalle en
+  histórico. Estado de fases: F1 ✔ · ADR-002 ✔ · F3 ✔ · **F2 EN COLA (PROMPT-008,
+  adapter BDNS)** · F4/F5 pendientes. Notas de auditoría: redundancia de ámbito en
+  el contrato → candidato ADR-003 (backlog); política de persistencia de matches no
+  elegibles → decidir en F4.
 - **2026-07-18 — NUEVO ENCARGO DE PRODUCTO (feedback del operador → spec):** la
   plataforma capta proactivamente. Dos investigaciones profundas DEL ARQUITECTO (no
   son prompts de código): **R1 — catálogo de fuentes de subvenciones** (estatales/
@@ -117,7 +120,7 @@ siguiente acción según este documento.
 
 ### ➤ PROMPTS PENDIENTES — todos aquí, listos para copiar (se vacían al cerrarse)
 
-#### PROMPT-007 — F3: guardarraíl determinista de elegibilidad + capa IA explicativa · MODELO: Sonnet · ORDEN: 1º (nada en paralelo)
+#### PROMPT-008 — F2: ingesta de convocatorias vía API BDNS · MODELO: Sonnet · ORDEN: 1º (nada en paralelo)
 
 ```
 POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda
@@ -134,59 +137,70 @@ arquitecto: no cierres items, no te declares APROBADO, no muevas nada al
 histórico — limítate a incluir en tu commit los cambios de
 engineering/06_* que ya estén en el working tree, tal cual estén.
 
-TAREA: F3 del ADR-001 (léelo, y el ADR-002) — guardarraíl determinista de
-elegibilidad + capa IA explicativa. La IA propone, el dominio valida.
+TAREA: F2 del ADR-001 — ingesta de convocatorias vía la API pública de la
+BDNS. Contexto (verificado en investigación R1, ver
+investigacion/R1_informe.md): la BDNS/SNPSAP agrega TODAS las convocatorias
+públicas de España (estatal, CCAA, diputaciones, ayuntamientos) y expone
+API REST pública SIN autenticación (Swagger:
+https://www.infosubvenciones.es/bdnstrans/doc/swagger). Búsqueda paginada
+JSON: /bdnstrans/api/convocatorias/busqueda?page=N&pageSize=M. Detalle:
+/bdnstrans/api/convocatorias?numConv=<códigoBDNS> con campos
+tiposBeneficiarios, regiones, fechaInicioSolicitud, fechaFinSolicitud,
+abierto, presupuestoTotal, finalidad, urlBasesReguladoras, organo y
+jerarquía administrativa nivel1/nivel2/nivel3.
 
-1. `src/ongs_ai/dominio/elegibilidad.py` — función PURA y determinista
-   (sin IA, sin red, sin reloj implícito):
-   `evaluar_elegibilidad(entidad, convocatoria, fecha_referencia: date)
-   -> ResultadoElegibilidad`. Reglas:
-   a. `estado_ingesta != VERIFICADA` → elegible=False (motivo: datos sin
-      verificar; ADR-001 §2 — nunca elegible por defecto).
-   b. Ámbito: convocatoria NACIONAL acepta cualquier entidad; AUTONOMICO
-      exige misma `region` (comparación normalizada: minúsculas, sin
-      tildes, espacios colapsados — reutiliza/extrae el normalizador de
-      ADR-002); PROVINCIAL exige misma `provincia`; LOCAL → NO EVALUABLE
-      en v1 (el contrato no tiene `municipio`; anótalo en el detalle).
-      Dato necesario ausente en cualquiera de los dos lados → NO EVALUABLE.
-   c. `forma_juridica_requerida`: None → no aplica; texto →
-      `normalizar_forma_juridica`; sin mapeo → NO EVALUABLE; con mapeo →
-      compara con `entidad.forma_juridica.tipo`; entidad con OTRA nunca
-      casa automáticamente.
-   d. `antiguedad_minima_anios`: años COMPLETOS entre `fecha_constitucion`
-      y `fecha_referencia` (aniversario no alcanzado no cuenta — testea el
-      borde del día exacto).
-   e. `requisitos_formales_requeridos` ⊆ `requisitos_formales_disponibles`.
-   f. `exclusiones` (texto libre): NO se evalúan automáticamente en v1 —
-      no bloquean, pero aparecen en el detalle como "revisar manualmente".
-   Regla global: cualquier requisito NO EVALUABLE ⇒ elegible=False (no
-   elegible automático ≠ excluida — el detalle lo distingue). `detalle`:
-   string legible línea a línea (requisito → cumple / incumple /
-   no_evaluable / revisar).
-2. `src/ongs_ai/ia/explicacion_match.py` (+ `__init__.py` del paquete):
-   Protocol `GeneradorExplicacion` (mockeable) y una ÚNICA implementación
-   v1: `ExplicadorStub`, determinista, sin red (el proveedor LLM real lo
-   decidirá el arquitecto más adelante). Si el generador lanza o devuelve
-   vacío, el llamador sigue con `explicacion_ia=None`: la IA JAMÁS lanza
-   al dominio ni altera la elegibilidad.
-3. `src/ongs_ai/dominio/matching.py` — servicio determinista
-   `detectar_matches(entidades, convocatorias, fecha_referencia,
-   generador_explicacion=None, generador_ids, reloj=...) -> list[Match]`
-   (ids y timestamps SIEMPRE inyectados, nada de now()/uuid4() implícitos
-   en dominio): evalúa cada pareja, crea Match en estado `detectada`
-   (asiento actor=sistema) con `resultado_elegibilidad_dura` SIEMPRE
-   informado; `explicacion_ia` solo si elegible y el generador responde.
-   La transición a `propuesta` es F4 — NO la implementes.
-4. Tests: una batería por regla (cumple/incumple/no_evaluable), borde de
-   aniversario exacto, convocatoria sin verificar, OTRA nunca casa,
-   exclusiones no bloquean pero aparecen en el detalle, degradación IA
-   (stub que lanza → Match válido sin explicación, sin excepción),
-   `detectar_matches` produce Matches `detectada` correctos, y el
-   anti-hardcoding sigue verde (ninguna región/provincia/enfermedad real
-   hardcodeada en plataforma — solo en datos de test).
-5. `python -m pytest -q` VERDE, herméticos.
-6. Incluye en tu commit los cambios de `engineering/06_*` del working
-   tree, tal cual están (cierre de ADR-002 por el arquitecto).
+1. `src/ongs_ai/adapters/ingesta/base.py`: Protocol `FuenteConvocatorias`
+   (p. ej. `buscar(filtros) -> Iterable[Convocatoria]`) + transporte HTTP
+   INYECTABLE (Protocol o callable url->respuesta). Los tests usan SIEMPRE
+   transporte stub con fixtures grabadas — red apagada, cero peticiones
+   reales en tests (regla de oro).
+2. `src/ongs_ai/adapters/ingesta/bdns.py`: `FuenteBDNS` contra esa API.
+   Mapeo DETERMINISTA (aquí no hay LLM: la API ya da datos estructurados)
+   a `Convocatoria` del contrato:
+   - `fuente`: portal="BDNS", `url_origen` = URL de detalle con el código
+     BDNS (clave natural de dedupe, ADR-001 §6.5), `tipo` desde la
+     jerarquía administrativa (estatal→publica_nacional,
+     autonómica→publica_autonomica, local→publica_local; sin mapeo claro →
+     el valor más conservador y documéntalo).
+   - `regiones` → `ambito_geografico` + `region` (código "ES51 - CATALUÑA"
+     → separa código y nombre; varias regiones o "ES - ESPAÑA" → nacional).
+   - fechas de solicitud → `plazos`; `finalidad`/descripcion → `objeto`;
+     `tiposBeneficiarios` (texto) → `beneficiarios_elegibles`.
+   - `presupuestoTotal` llega en EUROS (posible float) → convierte a
+     CÉNTIMOS int en la frontera del adapter (round determinista); jamás
+     float hacia el dominio (regla de oro).
+   - `requisitos_elegibilidad`: solo lo derivable determinista (p. ej.
+     ámbito); el resto queda vacío para la capa de extracción IA futura.
+   - `estado_ingesta`: EXTRAIDA al mapear; una función de dominio pequeña
+     promociona a VERIFICADA solo si los campos mínimos están presentes
+     (defínelos y documéntalos: al menos objeto, plazos con fecha_cierre,
+     ambito_geografico y beneficiarios no vacíos).
+   - Filtros de búsqueda (texto, fechas, beneficiario) SIEMPRE como
+     parámetros/datos — ninguna enfermedad ni entidad hardcodeada.
+3. Dedupe idempotente: re-ingestar la misma convocatoria (mismo
+   portal+url_origen) NO duplica — comprueba contra el almacén antes de
+   guardar (añade al puerto lo mínimo necesario si hace falta, p. ej.
+   obtener_por_url_origen) y testéalo con doble pasada.
+4. Fixtures: 2-3 respuestas JSON REALISTAS de la API (recórtalas a mano,
+   sintéticas pero con la forma real de los campos del Swagger; jamás
+   datos de entidades reales inventando cifras) en tests/fixtures/ingesta/.
+5. `scripts/smoke_bdns.py`: script MANUAL (fuera de pytest) que el
+   OPERADOR ejecutará con red real: pide 1 página de la API, mapea e
+   imprime un resumen. Documenta en su docstring que hace red y no se
+   ejecuta en CI.
+6. Git de la carpeta `investigacion/` (hoy sin trackear): añade a
+   .gitignore la línea `investigacion/asociaciones*` (prospección con
+   datos personales, NUNCA a git) y commitea SOLO
+   `investigacion/R1_catalogo_fuentes_subvenciones.xlsx` y
+   `investigacion/R1_informe.md` (catálogo sin datos personales).
+7. Tests: mapeo completo BDNS→Convocatoria (incluido dinero a céntimos y
+   regiones), paginación, dedupe en doble pasada, promoción
+   EXTRAIDA→VERIFICADA (con y sin campos mínimos), transporte que falla →
+   degrada limpio (sin excepción al dominio; registra y sigue), y todo el
+   resto de la suite VERDE.
+8. `python -m pytest -q` VERDE, herméticos. Incluye los cambios de
+   `engineering/06_*` del working tree tal cual (cierre de F3 por el
+   arquitecto).
 
 Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
 `git status` antes del add, `git push` al terminar.
@@ -194,18 +208,30 @@ Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
 
 ### Bandeja del OPERADOR
 
-- Pegar PROMPT-007 (F3) en una sesión de Claude Code (Sonnet) y avisar al arquitecto
-  al terminar para auditoría.
+- Pegar PROMPT-008 (F2, ingesta BDNS) en una sesión de Claude Code (Sonnet) y avisar
+  al arquitecto al terminar para auditoría.
+- Tras el cierre de F2: ejecutar `python scripts/smoke_bdns.py` en tu terminal (hace
+  red real) y pegar el resumen al arquitecto — verificación humana de la API viva.
+- Revisar el Excel de R1 y decir al arquitecto si falta algún portal de los que usabas.
 - **Captar entidad piloto** (acceso + ingresos/gastos del ejercicio anterior +
   lista de actividades). El arquitecto ofrece redactar el mensaje de propuesta.
-- (La lista de portales ya NO es tuya: la cubre R1 del arquitecto, en curso.)
 
 ### Backlog
 
-- F2 ingesta (bloqueada por lista de portales) · F3 matching+IA explicativa ·
-  F4 propuesta/aviso · F5 preparación asistida — el arquitecto redacta cada prompt
-  al quedar AUDITADA la fase anterior (pactado en ADR-001 §5).
-- Endurecer el test anti-hardcoding (el canario del ADR pasa por construcción) — F3+.
+- F4 propuesta/aviso (email + panel; decide política de persistencia de matches no
+  elegibles) · F5 preparación asistida (alcance ampliado por el operador) — prompt
+  al quedar AUDITADA la fase anterior (ADR-001 §5).
+- ADR-003 candidato: redundancia de ámbito en el contrato (`ambito_geografico`+
+  region/provincia vs `ambito_territorial_requerido` sin consumir) — limpiar.
+- R2 — directorio de asociaciones EERR: **EN CURSO** (lanzada 18-jul ~23:30, tras el
+  reset del límite). Estrategia: primero directorios agregadores (FEDER ~400 miembros,
+  SOMOS Pacientes, POP, federaciones autonómicas) + extracción de asociaciones
+  concretas con contacto. Entregable FUERA de git (`investigacion/asociaciones*`,
+  gitignorado en PROMPT-008). Verificación pendiente de R1: opcional, después.
+- Adapters privados de ingesta (FEDER, la Caixa, ONCE) + agregador SolucionesONG —
+  tras F2.
+- Proveedor LLM real para la capa IA (hoy ExplicadorStub) — decisión del arquitecto.
+- Endurecer el test anti-hardcoding (el canario del ADR pasa por construcción).
 - Esqueleto de la app (fija el comando de servidor local en CLAUDE.md) — tras F1.
 - Modelo de negocio (las entidades objetivo tienen pocos recursos) — conversación
   de producto, sin prisa técnica.

@@ -1,0 +1,57 @@
+{
+  "content": [
+    {
+      "id": 5000001,
+      "mrr": false,
+      "numeroConvocatoria": "100001",
+      "descripcion": "Convocatoria ficticia estatal de subvenciones para entidades del tercer sector de acción social",
+      "descripcionLeng": null,
+      "fechaRecepcion": "2026-05-14",
+      "nivel1": "ESTADO",
+      "nivel2": "MINISTERIO FICTICIO DE DERECHOS SOCIALES",
+      "nivel3": "DIRECCIÓN GENERAL FICTICIA DE SERVICIOS SOCIALES",
+      "codigoInvente": null
+    },
+    {
+      "id": 5000002,
+      "mrr": false,
+      "numeroConvocatoria": "100002",
+      "descripcion": "Convocatoria ficticia autonómica para asociaciones de pacientes",
+      "descripcionLeng": null,
+      "fechaRecepcion": "2026-02-01",
+      "nivel1": "AUTONOMICA",
+      "nivel2": "CATALUÑA FICTICIA",
+      "nivel3": "DEPARTAMENTO FICTICIO DE BIENESTAR SOCIAL",
+      "codigoInvente": null
+    },
+    {
+      "id": 5000003,
+      "mrr": false,
+      "numeroConvocatoria": "100003",
+      "descripcion": "Convocatoria ficticia municipal de ayudas a entidades sociales",
+      "descripcionLeng": null,
+      "fechaRecepcion": "2026-01-05",
+      "nivel1": "LOCAL",
+      "nivel2": "VILAFICTICIA",
+      "nivel3": "AYUNTAMIENTO DE VILAFICTICIA",
+      "codigoInvente": null
+    }
+  ],
+  "pageable": {
+    "sort": {"sorted": true, "unsorted": false, "empty": false},
+    "pageNumber": 0,
+    "pageSize": 3,
+    "offset": 0,
+    "unpaged": false,
+    "paged": true
+  },
+  "last": false,
+  "totalPages": 2,
+  "totalElements": 4,
+  "first": true,
+  "sort": {"sorted": true, "unsorted": false, "empty": false},
+  "numberOfElements": 3,
+  "size": 3,
+  "number": 0,
+  "empty": false
+}
