@@ -1,0 +1,7 @@
+.env
+var/
+__pycache__/
+*.log
+.pytest_cache/
+clientes/
+!.claude/agents/
