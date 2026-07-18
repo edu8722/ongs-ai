@@ -1,4 +1,5 @@
 """Adapter SQLite y factory por entorno — herméticos: `:memory:`, nunca disco compartido."""
+import json
 from datetime import datetime, timezone
 
 from ongs_ai.adapters.persistencia.factory import crear_almacen
@@ -43,9 +44,8 @@ def test_almacen_sqlite_en_memoria_guarda_y_lee_entidad():
         entidad = _entidad()
         almacen.guardar_entidad(entidad)
         leida = almacen.obtener_entidad(entidad.entidad_id)
-        assert leida is not None
-        assert leida["entidad_id"] == "ent-sqlite-1"
-        assert leida["datos_economicos_ejercicio_anterior"]["ingresos_centimos"] == 50_000
+        assert leida == entidad
+        assert leida.datos_economicos_ejercicio_anterior.ingresos_centimos == 50_000
     finally:
         almacen.cerrar()
 
@@ -66,7 +66,23 @@ def test_almacen_sqlite_en_memoria_filtra_matches_por_entidad():
 
         resultado = almacen.listar_matches_por_entidad("ent-A")
         assert len(resultado) == 1
-        assert resultado[0]["match_id"] == "m-a"
+        assert resultado[0] == match_a
+    finally:
+        almacen.cerrar()
+
+
+def test_almacen_sqlite_degrada_limpio_ante_json_corrupto():
+    """Dato feo en `datos_json` (falta un campo del contrato): se omite, no se lanza al dominio."""
+    almacen = AlmacenSQLite(":memory:")
+    try:
+        almacen._conn.execute(
+            "INSERT INTO entidades (entidad_id, datos_json) VALUES (?, ?)",
+            ("ent-corrupta", json.dumps({"entidad_id": "ent-corrupta"})),
+        )
+        almacen._conn.commit()
+
+        assert almacen.obtener_entidad("ent-corrupta") is None
+        assert almacen.registros_omitidos_por_corrupcion == 1
     finally:
         almacen.cerrar()
 

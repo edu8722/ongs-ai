@@ -59,17 +59,21 @@ siguiente acción según este documento.
 
 ## ESTADO VIVO
 
-- **2026-07-18 — Fundación completa y AUDITADA**: PROMPT-001 (bootstrap, HECHO 2101890)
-  y PROMPT-002 (higiene, HECHO 1f50ed8 tras amend) cerrados al histórico. Repo en
-  `main`, 2 commits, 1 test VERDE, EOL fijados, versión única, nada sensible.
-  Nota: la excepción `!.claude/agents/` del .gitignore es hoy inerte — se deja.
-- **Lección para el ritual:** las sesiones empleadas pueden afirmar en el resumen pasos
-  del ritual que no hicieron (pasó con el mensaje de commit de PROMPT-002). La
-  auditoría SIEMPRE verifica el mensaje de commit real (`git log -1 --format=%s`),
-  no el resumen.
-- Decisiones fundacionales del 2026-07-18: producto = **SaaS multi-tenant para ONGs**
-  (alcance en descubrimiento); stack = **Python heredado** (SQLite, pytest hermético).
-  CLAUDE.md v1 con regla de oro nueva: aislamiento por tenant con test anti-fuga.
+- **2026-07-18 (noche) — F1 ejecutada (7db6c5d, 31 tests VERDES) y AUDITADA:
+  CORRECCIONES, no cerrada.** Lo bueno: contrato calcado del ADR, máquina de estados
+  exacta (terminales incluidos, `transicionar` inmutable), dinero/pb rechazando floats
+  y bool, anti-fuga sobre matches+asientos+datos económicos, SQLite anclado a `var/`
+  (gitignorado). La grieta: **AlmacenSQLite viola su puerto** — `puertos.py` promete
+  objetos de dominio y SQLite devuelve dicts; el adapter real y el de tests tienen
+  contratos DISTINTOS y el anti-fuga solo corre contra memoria (tests verdes ≠
+  producción funciona). Corrección → PROMPT-005. El blob `datos_json` como formato
+  interno del adapter se ACEPTA v1 (no viola ADR §3.1 mientras la evaluación use
+  objetos tipados). PROMPT-004 viaja al histórico cuando 005 quede auditado.
+- **Lección para el ritual** (sigue vigente, 2 casos ya): los resúmenes de sesión
+  afirman cosas que el código desmiente — mensaje de commit en PROMPT-002, "decisión
+  conservadora" que rompía el puerto en PROMPT-004. Auditar SIEMPRE el artefacto real.
+- Fundación cerrada al histórico: PROMPT-001 (2101890), PROMPT-002 (1f50ed8),
+  PROMPT-003/ADR-001 (6423f46). Stack Python/SQLite/pytest hermético.
 - **2026-07-18 (noche) — ADR-001 ACEPTADO y AUDITADO (HECHO 6423f46)**: contrato
   Entidad/Convocatoria/Actividad/Match congelado en el ADR; CLAUDE.md se actualizará
   con nombre+ruta en F1 (paso 7 del prompt). Producto definido en `PROJECT_CONTEXT.md`.
@@ -78,9 +82,15 @@ siguiente acción según este documento.
   `descartada`/`presentada` terminales (a `en_preparacion` solo desde `aceptada`;
   reintento = Match nuevo, ADR §6.4) y `porcentaje_max_financiable` en puntos básicos
   enteros (8000 = 80%), jamás float.
-- Supuestos vigentes del ADR §6 (defaults, corregibles por el operador): módulo en
-  `src/ongs_ai/dominio/`; F5 = borrador de memoria narrativa; aviso F4 = email;
-  Match nuevo tras descartada; dedupe ingesta por `portal`+`url_origen`.
+- **Decisiones del operador (2026-07-18) sobre ADR §6 — cerradas:** (1) módulo
+  `src/ongs_ai/dominio/` ✔; (2) **F5 AMPLIADO sobre el default**: no solo memoria
+  narrativa — análisis de TODO lo que la entidad necesita para poder presentarse
+  (checklist de requisitos documentales con gap: qué tiene / qué le falta) + borrador
+  de TODOS los documentos entregables a partir de los datos que la entidad facilite
+  (probable ADR de ampliación de contrato al llegar F5: entidad DocumentoRequerido);
+  (3) aviso F4 = **email + panel** en la plataforma (el panel adelanta la necesidad
+  del esqueleto web — subir en backlog); (4) Match nuevo tras descartada ✔;
+  (5) dedupe `portal`+`url_origen` ✔.
 - **Duele:** sin lista concreta de portales/fuentes (bloquea el prompt de F2) y sin
   entidad piloto. Test anti-hardcoding v1 es canario débil — endurecer en F3+.
 - Sin remoto git → el `git push` del ritual queda en "anótalo" hasta que exista.
@@ -89,7 +99,7 @@ siguiente acción según este documento.
 
 ### ➤ PROMPTS PENDIENTES — todos aquí, listos para copiar (se vacían al cerrarse)
 
-#### PROMPT-004 — F1: contrato + persistencia + tests fundacionales · MODELO: Sonnet · ORDEN: 1º (nada en paralelo)
+#### PROMPT-005 — Corrección F1: el puerto se cumple en TODOS los adapters · MODELO: Sonnet · ORDEN: 1º (nada en paralelo)
 
 ```
 POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda
@@ -103,48 +113,41 @@ el prompt y CLAUDE.md chocan, gana CLAUDE.md y me lo señalas. Antes de
 tocar un fichero grande, Grep al símbolo y lee el rango — nunca el
 fichero entero.
 
-TAREA: implementar el contrato de datos de ADR-001
-(engineering/ADR-001-contrato-de-datos.md) — léelo completo primero, es la
-fuente congelada — para el proyecto ONGs-AI.
+TAREA: corrección de la auditoría de F1 (commit 7db6c5d) en ONGs-AI.
+Contexto: `src/ongs_ai/dominio/puertos.py` promete objetos de dominio
+(`Entidad | None`, `Convocatoria | None`, `list[Match]`) pero
+`AlmacenSQLite` devuelve dicts decodificados del JSON. El adapter real y
+el de tests tienen contratos distintos, y los tests de aislamiento solo
+corren contra memoria. El formato interno `datos_json` NO se cambia — es
+detalle aceptado del adapter; lo que se corrige es la frontera del puerto.
 
-1. Modela `Entidad`, `Convocatoria`, `Actividad` (enum cerrado v1 tal cual
-   §1.3 del ADR) y `Match` (con sus asientos inmutables) exactamente con
-   los campos de las tablas del ADR, en dominio puro (sin dependencias de
-   framework web ni de IA).
-2. Dinero SIEMPRE en céntimos enteros (int), nunca float — valida esto con
-   un test explícito que rechace floats en esos campos.
-   `porcentaje_max_financiable` se almacena como ENTERO en puntos básicos
-   (8000 = 80%), jamás float — mismo test.
-3. Persistencia con factory por entorno: adapter real (SQLite, ALTER TABLE
-   idempotente si hace falta versionar el esquema, ruta SIEMPRE anclada al
-   repo o absoluta — jamás relativa al CWD) por defecto, adapter en
-   memoria (`:memory:` o estructura Python pura) para tests. Los tests
-   jamás tocan red ni fichero real de SQLite en disco compartido.
-4. Test anti-fuga cross-tenant: crea dos Entidades, un Match de cada una,
-   y comprueba que una consulta con `entidad_id` de la primera nunca
-   devuelve datos (Match, asientos, datos económicos) de la segunda.
-5. Test anti-hardcoding: crea una Entidad con una enfermedad rara
-   inventada por el test (no una real) y comprueba que ningún fichero de
-   `src/ongs_ai/` la menciona ni depende de su valor literal.
-6. Máquina de estados de Match — PRECISIÓN sobre el ADR (§1.4 + §6.4):
-   transiciones legales EXACTAS: `detectada → propuesta`,
-   `propuesta → aceptada`, `propuesta → descartada`,
-   `aceptada → en_preparacion`, `en_preparacion → presentada`.
-   `descartada` y `presentada` son estados TERMINALES: ninguna transición
-   sale de ellos. El reintento tras `descartada` es un Match NUEVO para la
-   misma Entidad+Convocatoria (el histórico del anterior no se toca).
-   Cada transición crea un asiento nuevo, nunca reescribe uno existente
-   (comprueba inmutabilidad con test: estructura solo-añadir o excepción
-   al intentar mutar un asiento pasado). Testea también que las
-   transiciones ilegales (p. ej. `descartada → en_preparacion`,
-   `detectada → aceptada`) lanzan error de dominio.
-7. Actualiza CLAUDE.md, sección CONTRATO CONGELADO: fija el nombre
-   ("Entidad/Convocatoria/Actividad/Match, ADR-001") y la ruta real de los
-   ficheros de dominio que hayas creado en el paso 1.
-8. `python -m pytest -q` VERDE (herméticos: sin red, sin depender de
-   .env de la máquina).
-9. Incluye en tu commit los cambios de `engineering/06_*` presentes en el
-   working tree (cierre de PROMPT-003 por el arquitecto).
+1. En `AlmacenSQLite`, reconstruye objetos de dominio TIPADOS en las
+   lecturas: `obtener_entidad -> Entidad | None`,
+   `obtener_convocatoria -> Convocatoria | None`,
+   `listar_matches_por_entidad -> list[Match]`. Deserializa enums, fechas
+   (date/datetime ISO), tuplas y objetos anidados exactamente a los
+   dataclasses de `entidades.py`/`matching_estado.py`. Si el JSON
+   almacenado no mapea al contrato (dato feo), NO lances al dominio:
+   devuelve None / omite el registro marcándolo — degrada limpio (regla
+   de oro; para F1 basta omitir con log/contador interno, documenta lo
+   elegido).
+2. Tests de CONTRATO parametrizados sobre AMBOS adapters
+   (`AlmacenMemoria` y `AlmacenSQLite(':memory:')` — jamás fichero real
+   en tests): round-trip de igualdad guardar→obtener para Entidad,
+   Convocatoria y Match (incluidos asientos con sus enums y timestamps),
+   y los DOS tests de `test_anti_fuga_tenant.py` corriendo sobre ambos
+   (parametriza o factoriza la fixture; no dupliques el cuerpo).
+3. Un test que verifique explícitamente que ambos adapters satisfacen los
+   Protocol de `puertos.py` para los tres repositorios (p. ej.
+   `isinstance(almacen, RepositorioEntidades)` con Protocol
+   runtime_checkable, o llamada tipada equivalente).
+4. Refresca el párrafo de cabecera de CLAUDE.md (líneas 1–6): el producto
+   ya NO está "en descubrimiento" — una frase alineada con
+   PROJECT_CONTEXT.md (técnico de subvenciones para entidades de
+   enfermedades raras; multi-tenant). No toques las reglas de oro.
+5. `python -m pytest -q` VERDE, herméticos.
+6. Incluye en tu commit los cambios de `engineering/06_*` presentes en el
+   working tree (auditoría de F1 por el arquitecto).
 
 Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
 git status antes del add (ni .env, ni var/, ni datos reales de entidad),
@@ -153,11 +156,8 @@ sin push si aún no hay remoto (anótalo).
 
 ### Bandeja del OPERADOR
 
-- Pegar PROMPT-004 (F1) en una sesión de Claude Code (Sonnet) y avisar al arquitecto
-  al terminar para auditoría.
-- Validar (o corregir) los 5 defaults del ADR §6 — en especial la 2 (alcance F5:
-  borrador de memoria narrativa) y la 3 (aviso F4: email), que condicionan los
-  prompts de F4/F5.
+- Pegar PROMPT-005 (corrección F1) en una sesión de Claude Code (Sonnet) y avisar al
+  arquitecto al terminar para auditoría.
 - **Lista de portales/fuentes de subvenciones** que usabas (nacional, regional,
   local + privadas) — bloquea el prompt de F2.
 - **Captar entidad piloto** (acceso + ingresos/gastos del ejercicio anterior +

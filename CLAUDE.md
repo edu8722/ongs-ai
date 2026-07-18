@@ -1,8 +1,8 @@
 # ONGs-AI — reglas para Claude
 
-Plataforma SaaS multi-tenant para ONGs: cada ONG es un tenant que gestiona sus propios
-datos; el alcance funcional exacto está en descubrimiento (ver preguntas de producto en
-el 06). Visión y dominio: `PROJECT_CONTEXT.md` cuando exista.
+Plataforma SaaS multi-tenant que actúa de técnico de subvenciones para entidades de
+enfermedades raras: cada entidad es un tenant que gestiona su propia cartera y recibe
+matching de convocatorias compatibles. Visión y dominio: `PROJECT_CONTEXT.md`.
 Plan operativo vigente y prompts por paso: `engineering/06_SIGUIENTES_PASOS.md`.
 
 ## Reglas de oro (INNEGOCIABLES)

@@ -2,10 +2,15 @@
 
 Dos Entidades, un Match de cada una: una consulta con `entidad_id` de la
 primera nunca debe devolver Match, asientos ni datos económicos de la segunda.
+Corre sobre AMBOS adapters (memoria, sqlite ':memory:') — el aislamiento es una
+garantía del puerto, no de un adapter concreto.
 """
 from datetime import datetime, timezone
 
+import pytest
+
 from ongs_ai.adapters.persistencia.memoria import AlmacenMemoria
+from ongs_ai.adapters.persistencia.sqlite import AlmacenSQLite
 from ongs_ai.dominio.entidades import (
     ActividadDeclarada,
     AmbitoTerritorial,
@@ -18,6 +23,15 @@ from ongs_ai.dominio.entidades import (
 from ongs_ai.dominio.matching_estado import ActorAsiento, crear_match
 
 T0 = datetime(2026, 7, 18, tzinfo=timezone.utc)
+
+
+@pytest.fixture(params=["memoria", "sqlite"])
+def almacen(request):
+    instancia = AlmacenMemoria() if request.param == "memoria" else AlmacenSQLite(":memory:")
+    yield instancia
+    cerrar = getattr(instancia, "cerrar", None)
+    if cerrar is not None:
+        cerrar()
 
 
 def _entidad(entidad_id: str, ingresos_centimos: int) -> Entidad:
@@ -38,9 +52,7 @@ def _entidad(entidad_id: str, ingresos_centimos: int) -> Entidad:
     )
 
 
-def test_consulta_por_entidad_a_no_devuelve_matches_de_entidad_b():
-    almacen = AlmacenMemoria()
-
+def test_consulta_por_entidad_a_no_devuelve_matches_de_entidad_b(almacen):
     entidad_a = _entidad("ent-A", ingresos_centimos=111_111)
     entidad_b = _entidad("ent-B", ingresos_centimos=222_222)
     almacen.guardar_entidad(entidad_a)
@@ -70,9 +82,7 @@ def test_consulta_por_entidad_a_no_devuelve_matches_de_entidad_b():
             assert asiento.transicion_id != "t0-b"
 
 
-def test_consulta_por_entidad_a_no_expone_datos_economicos_de_entidad_b():
-    almacen = AlmacenMemoria()
-
+def test_consulta_por_entidad_a_no_expone_datos_economicos_de_entidad_b(almacen):
     entidad_a = _entidad("ent-A", ingresos_centimos=111_111)
     entidad_b = _entidad("ent-B", ingresos_centimos=222_222)
     almacen.guardar_entidad(entidad_a)
