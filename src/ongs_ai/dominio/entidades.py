@@ -113,6 +113,14 @@ _MAPA_FORMA_JURIDICA: dict[str, FormaJuridica] = {
 }
 
 
+def normalizar_texto_comparacion(texto: str) -> str:
+    """Minúsculas + sin tildes + espacios colapsados — comparación determinista de
+    texto libre (ADR-002 §2.3). Reutilizado por `normalizar_forma_juridica` y por
+    el guardarraíl de elegibilidad (F3) para comparar región/provincia.
+    """
+    return " ".join(texto.strip().lower().translate(_TABLA_TILDES).split())
+
+
 def normalizar_forma_juridica(texto: str) -> FormaJuridica | None:
     """Normaliza un `forma_juridica_requerida` (texto libre, extracción IA) contra el
     mapeo cerrado de sinónimos → `FormaJuridica` (ADR-002 §2.3).
@@ -124,8 +132,7 @@ def normalizar_forma_juridica(texto: str) -> FormaJuridica | None:
     """
     if not texto:
         return None
-    clave = " ".join(texto.strip().lower().translate(_TABLA_TILDES).split())
-    return _MAPA_FORMA_JURIDICA.get(clave)
+    return _MAPA_FORMA_JURIDICA.get(normalizar_texto_comparacion(texto))
 
 
 # --- Entidad (§1.1 del ADR — el tenant) ----------------------------------

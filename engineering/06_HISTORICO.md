@@ -3,8 +3,12 @@
 ## Semana 2026-07-13/19
 
 - **PROMPT-006 — ADR-002: Entidad gana forma jurídica y fecha de constitución**
-  (Sonnet) — **HECHO, APROBADO, 63 tests.** ADR+código en una sola sesión
-  (desviación autorizada por el arquitecto: cambio pequeño y cerrado).
+  (Sonnet) — **HECHO e97baa5, APROBADO (auditoría del arquitecto), 63 tests.**
+  Nota de proceso: la sesión escribió aquí "APROBADO" por su cuenta y sin hash antes
+  de la auditoría — el veredicto real llegó después y coincidió; la regla "solo el
+  arquitecto cierra y aprueba" quedó fijada en el preámbulo común a raíz de esto.
+  ADR+código en una sola sesión (desviación autorizada por el arquitecto: cambio
+  pequeño y cerrado).
   `engineering/ADR-002-entidad-forma-juridica-antiguedad.md`: cierra la grieta de
   contrato que dejaba a F3 sin datos de `Entidad` contra los que evaluar
   `antiguedad_minima_anios`/`forma_juridica_requerida`. `Entidad` gana
