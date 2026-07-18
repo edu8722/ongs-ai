@@ -70,23 +70,26 @@ siguiente acción según este documento.
 - Decisiones fundacionales del 2026-07-18: producto = **SaaS multi-tenant para ONGs**
   (alcance en descubrimiento); stack = **Python heredado** (SQLite, pytest hermético).
   CLAUDE.md v1 con regla de oro nueva: aislamiento por tenant con test anti-fuga.
-- **2026-07-18 (tarde) — PRODUCTO DEFINIDO** (notas de voz del operador, transcritas):
-  técnico de subvenciones para entidades de enfermedades raras sin personal — cartera
-  de entidades + vigilante de convocatorias (público/privado, nacional→local) +
-  matching con aviso/propuesta + preparación asistida de solicitudes. Visión completa
-  en `PROJECT_CONTEXT.md` (raíz). ADR-001 desbloqueado → PROMPT-003 (Opus) en cola.
-  Supuestos por defecto del arquitecto (corregibles): ámbito España/castellano; v1 SIN
-  datos de pacientes (solo datos de entidad); "desarrollar la solicitud" = borradores
-  de documentos, presenta la entidad.
-- **Duele:** sin lista concreta de portales/fuentes y sin entidad piloto — no bloquean
-  el ADR (el contrato se diseña igual), pero sí bloquearán la ingesta real.
+- **2026-07-18 (noche) — ADR-001 ACEPTADO y AUDITADO (HECHO 6423f46)**: contrato
+  Entidad/Convocatoria/Actividad/Match congelado en el ADR; CLAUDE.md se actualizará
+  con nombre+ruta en F1 (paso 7 del prompt). Producto definido en `PROJECT_CONTEXT.md`.
+  Fases F1–F5 pactadas; prompts F2–F5 los redacta el arquitecto tras auditar la fase
+  anterior. F1 encolado como PROMPT-004 con dos refinamientos del arquitecto:
+  `descartada`/`presentada` terminales (a `en_preparacion` solo desde `aceptada`;
+  reintento = Match nuevo, ADR §6.4) y `porcentaje_max_financiable` en puntos básicos
+  enteros (8000 = 80%), jamás float.
+- Supuestos vigentes del ADR §6 (defaults, corregibles por el operador): módulo en
+  `src/ongs_ai/dominio/`; F5 = borrador de memoria narrativa; aviso F4 = email;
+  Match nuevo tras descartada; dedupe ingesta por `portal`+`url_origen`.
+- **Duele:** sin lista concreta de portales/fuentes (bloquea el prompt de F2) y sin
+  entidad piloto. Test anti-hardcoding v1 es canario débil — endurecer en F3+.
 - Sin remoto git → el `git push` del ritual queda en "anótalo" hasta que exista.
 
 ## COLA — lo que de verdad queda
 
 ### ➤ PROMPTS PENDIENTES — todos aquí, listos para copiar (se vacían al cerrarse)
 
-#### PROMPT-003 — ADR-001: contrato de datos central · MODELO: Opus · ORDEN: 1º (nada en paralelo) · SIN CÓDIGO
+#### PROMPT-004 — F1: contrato + persistencia + tests fundacionales · MODELO: Sonnet · ORDEN: 1º (nada en paralelo)
 
 ```
 POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda
@@ -100,68 +103,73 @@ el prompt y CLAUDE.md chocan, gana CLAUDE.md y me lo señalas. Antes de
 tocar un fichero grande, Grep al símbolo y lee el rango — nunca el
 fichero entero.
 
-TAREA: escribir el ADR-001 del proyecto ONGs-AI. SOLO documentación — ni
-una línea de código de producción. Lee primero PROJECT_CONTEXT.md (raíz;
-puede estar sin commitear: el working tree es la verdad e inclúyelo en tu
-commit) y CLAUDE.md.
+TAREA: implementar el contrato de datos de ADR-001
+(engineering/ADR-001-contrato-de-datos.md) — léelo completo primero, es la
+fuente congelada — para el proyecto ONGs-AI.
 
-Producto en una frase: SaaS multi-tenant que vigila convocatorias de
-subvenciones (públicas y privadas, nacional→local, España) y las casa con
-asociaciones de enfermedades raras sin personal, avisa, propone y ayuda a
-preparar la solicitud.
+1. Modela `Entidad`, `Convocatoria`, `Actividad` (enum cerrado v1 tal cual
+   §1.3 del ADR) y `Match` (con sus asientos inmutables) exactamente con
+   los campos de las tablas del ADR, en dominio puro (sin dependencias de
+   framework web ni de IA).
+2. Dinero SIEMPRE en céntimos enteros (int), nunca float — valida esto con
+   un test explícito que rechace floats en esos campos.
+   `porcentaje_max_financiable` se almacena como ENTERO en puntos básicos
+   (8000 = 80%), jamás float — mismo test.
+3. Persistencia con factory por entorno: adapter real (SQLite, ALTER TABLE
+   idempotente si hace falta versionar el esquema, ruta SIEMPRE anclada al
+   repo o absoluta — jamás relativa al CWD) por defecto, adapter en
+   memoria (`:memory:` o estructura Python pura) para tests. Los tests
+   jamás tocan red ni fichero real de SQLite en disco compartido.
+4. Test anti-fuga cross-tenant: crea dos Entidades, un Match de cada una,
+   y comprueba que una consulta con `entidad_id` de la primera nunca
+   devuelve datos (Match, asientos, datos económicos) de la segunda.
+5. Test anti-hardcoding: crea una Entidad con una enfermedad rara
+   inventada por el test (no una real) y comprueba que ningún fichero de
+   `src/ongs_ai/` la menciona ni depende de su valor literal.
+6. Máquina de estados de Match — PRECISIÓN sobre el ADR (§1.4 + §6.4):
+   transiciones legales EXACTAS: `detectada → propuesta`,
+   `propuesta → aceptada`, `propuesta → descartada`,
+   `aceptada → en_preparacion`, `en_preparacion → presentada`.
+   `descartada` y `presentada` son estados TERMINALES: ninguna transición
+   sale de ellos. El reintento tras `descartada` es un Match NUEVO para la
+   misma Entidad+Convocatoria (el histórico del anterior no se toca).
+   Cada transición crea un asiento nuevo, nunca reescribe uno existente
+   (comprueba inmutabilidad con test: estructura solo-añadir o excepción
+   al intentar mutar un asiento pasado). Testea también que las
+   transiciones ilegales (p. ej. `descartada → en_preparacion`,
+   `detectada → aceptada`) lanzan error de dominio.
+7. Actualiza CLAUDE.md, sección CONTRATO CONGELADO: fija el nombre
+   ("Entidad/Convocatoria/Actividad/Match, ADR-001") y la ruta real de los
+   ficheros de dominio que hayas creado en el paso 1.
+8. `python -m pytest -q` VERDE (herméticos: sin red, sin depender de
+   .env de la máquina).
+9. Incluye en tu commit los cambios de `engineering/06_*` presentes en el
+   working tree (cierre de PROMPT-003 por el arquitecto).
 
-Escribe `engineering/ADR-001-contrato-de-datos.md` con:
-
-1. DECISIÓN: el contrato de datos central congelable. Como mínimo las
-   entidades: Entidad (el tenant: perfil, ámbito territorial, actividades,
-   datos económicos del ejercicio anterior — dinero en CÉNTIMOS enteros),
-   Convocatoria (fuente, objeto, beneficiarios, ámbito, plazos, cuantías,
-   requisitos duros de elegibilidad como datos estructurados), Actividad
-   (tipología cerrada: voluntariado, encuentro de pacientes, charlas… —
-   enum cerrado y extensible SOLO por ADR), Match/Propuesta (estados:
-   detectada → propuesta → aceptada/descartada → en preparación →
-   presentada; asientos inmutables para todo cambio de estado).
-2. Para cada campo: ¿lo llena la IA (extracción) o el dominio (dato
-   verificado)? Los requisitos de elegibilidad DUROS se evalúan
-   deterministas sobre datos estructurados — la IA jamás decide
-   elegibilidad, solo extrae y explica (regla de oro).
-3. ALTERNATIVAS consideradas y por qué no (mínimo: schema libre por JSON
-   vs contrato tipado; matching todo-IA vs híbrido).
-4. CONSECUENCIAS: qué se congela en CLAUDE.md (nombre y ruta del
-   contrato), implicaciones de aislamiento por tenant y anti-hardcoding
-   (nada de una enfermedad o entidad concreta en el schema — todo llega
-   como datos), PII (v1 SIN datos de pacientes; datos económicos de
-   entidad = sensibles, fuera de git).
-5. FASES de implementación (sin código): fase → objetivo → ficheros
-   previstos → 1 prompt completo por fase con este mismo preámbulo.
-   Orientación: F1 contrato+persistencia+tests anti-fuga/anti-hardcoding;
-   F2 ingesta de convocatorias (adapters por portal, red inyectable,
-   apagada en tests); F3 matching determinista + capa IA explicativa;
-   F4 propuesta/aviso; F5 preparación asistida.
-6. PREGUNTAS AL OPERADOR con default cada una (agrupadas al final).
-
-Ritual de cierre: commit ÚNICO (ADR + PROJECT_CONTEXT.md + cambios de
-engineering/06_* presentes en el working tree), pytest VERDE con el nº
-REAL de tests en el mensaje, git status antes del add, sin push (sin
-remoto — anótalo).
+Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
+git status antes del add (ni .env, ni var/, ni datos reales de entidad),
+sin push si aún no hay remoto (anótalo).
 ```
 
 ### Bandeja del OPERADOR
 
-- Pegar PROMPT-003 en una sesión de Claude Code con **Opus** y avisar al arquitecto
+- Pegar PROMPT-004 (F1) en una sesión de Claude Code (Sonnet) y avisar al arquitecto
   al terminar para auditoría.
+- Validar (o corregir) los 5 defaults del ADR §6 — en especial la 2 (alcance F5:
+  borrador de memoria narrativa) y la 3 (aviso F4: email), que condicionan los
+  prompts de F4/F5.
 - **Lista de portales/fuentes de subvenciones** que usabas (nacional, regional,
-  local + privadas) — bloquea la fase de ingesta, no el ADR.
+  local + privadas) — bloquea el prompt de F2.
 - **Captar entidad piloto** (acceso + ingresos/gastos del ejercicio anterior +
   lista de actividades).
-- Validar (o corregir) los 3 supuestos por defecto del arquitecto: España/castellano;
-  v1 sin datos de pacientes; "desarrollar" = borradores, presenta la entidad.
 - Decidir si se crea remoto git (GitHub/otro) para poder cumplir el `git push` del ritual.
 
 ### Backlog
 
-- Fases F1–F5 del ADR-001 (los prompts los trae el propio ADR; el arquitecto los
-  audita y los sube a esta cola por orden).
+- F2 ingesta (bloqueada por lista de portales) · F3 matching+IA explicativa ·
+  F4 propuesta/aviso · F5 preparación asistida — el arquitecto redacta cada prompt
+  al quedar AUDITADA la fase anterior (pactado en ADR-001 §5).
+- Endurecer el test anti-hardcoding (el canario del ADR pasa por construcción) — F3+.
 - Esqueleto de la app (fija el comando de servidor local en CLAUDE.md) — tras F1.
 - Modelo de negocio (las entidades objetivo tienen pocos recursos) — conversación
   de producto, sin prisa técnica.

@@ -2,6 +2,15 @@
 
 ## Semana 2026-07-13/19
 
+- **PROMPT-003 — ADR-001 contrato de datos** (Opus) — **HECHO 6423f46, APROBADO**.
+  `engineering/ADR-001-contrato-de-datos.md` (359 líneas): Entidad/Convocatoria/
+  Actividad/Match, frontera IA-extrae/dominio-decide, alternativas (JSON libre,
+  matching todo-IA) bien descartadas, fases F1–F5. Desviación aprobada: solo F1 con
+  prompt completo; F2–F5 los redacta el arquitecto tras auditar la fase anterior.
+  Refinamientos del arquitecto al encolar F1: `descartada`/`presentada` terminales
+  (a `en_preparacion` solo desde `aceptada`); `porcentaje_max_financiable` en puntos
+  básicos enteros. Nota: test anti-hardcoding del ADR es canario débil — mejorar en
+  fase posterior.
 - **PROMPT-002 — Higiene post-bootstrap** (Sonnet) — **HECHO 1f50ed8, APROBADO**.
   .gitattributes (EOL fijados en repo, renormalización sin churn); pytest>=8 como
   dev-dep; versión única (`dynamic` → `ongs_ai.__version__`); cierre de PROMPT-001
