@@ -59,25 +59,34 @@ siguiente acción según este documento.
 
 ## ESTADO VIVO
 
-- **2026-07-18 — Repo bootstrapeado y AUDITADO: PROMPT-001 APROBADO, HECHO 2101890**
-  (detalle en histórico). Repo git en `main`, esqueleto Python, 1 test VERDE, nada
-  sensible commiteado. Tres notas menores de la auditoría van absorbidas en PROMPT-002
-  (higiene): pytest sin declarar como dependencia dev, line endings sin fijar en el repo
-  (aviso LF→CRLF de la config global de Windows), versión duplicada en pyproject +
-  `__init__.py`. La excepción `!.claude/agents/` del .gitignore es hoy inerte (nada
-  ignora `.claude/`) — se deja por si un ignore futuro la necesita.
+- **2026-07-18 — Fundación completa y AUDITADA**: PROMPT-001 (bootstrap, HECHO 2101890)
+  y PROMPT-002 (higiene, HECHO 1f50ed8 tras amend) cerrados al histórico. Repo en
+  `main`, 2 commits, 1 test VERDE, EOL fijados, versión única, nada sensible.
+  Nota: la excepción `!.claude/agents/` del .gitignore es hoy inerte — se deja.
+- **Lección para el ritual:** las sesiones empleadas pueden afirmar en el resumen pasos
+  del ritual que no hicieron (pasó con el mensaje de commit de PROMPT-002). La
+  auditoría SIEMPRE verifica el mensaje de commit real (`git log -1 --format=%s`),
+  no el resumen.
 - Decisiones fundacionales del 2026-07-18: producto = **SaaS multi-tenant para ONGs**
   (alcance en descubrimiento); stack = **Python heredado** (SQLite, pytest hermético).
   CLAUDE.md v1 con regla de oro nueva: aislamiento por tenant con test anti-fuga.
-- **Duele:** definición de producto vacía. ADR-001 (contrato de datos tenant/ONG)
-  bloqueado hasta que el operador responda las preguntas de producto (bandeja).
+- **2026-07-18 (tarde) — PRODUCTO DEFINIDO** (notas de voz del operador, transcritas):
+  técnico de subvenciones para entidades de enfermedades raras sin personal — cartera
+  de entidades + vigilante de convocatorias (público/privado, nacional→local) +
+  matching con aviso/propuesta + preparación asistida de solicitudes. Visión completa
+  en `PROJECT_CONTEXT.md` (raíz). ADR-001 desbloqueado → PROMPT-003 (Opus) en cola.
+  Supuestos por defecto del arquitecto (corregibles): ámbito España/castellano; v1 SIN
+  datos de pacientes (solo datos de entidad); "desarrollar la solicitud" = borradores
+  de documentos, presenta la entidad.
+- **Duele:** sin lista concreta de portales/fuentes y sin entidad piloto — no bloquean
+  el ADR (el contrato se diseña igual), pero sí bloquearán la ingesta real.
 - Sin remoto git → el `git push` del ritual queda en "anótalo" hasta que exista.
 
 ## COLA — lo que de verdad queda
 
 ### ➤ PROMPTS PENDIENTES — todos aquí, listos para copiar (se vacían al cerrarse)
 
-#### PROMPT-002 — Higiene post-bootstrap · MODELO: Sonnet · ORDEN: 1º (puede lanzarse YA; nada en paralelo)
+#### PROMPT-003 — ADR-001: contrato de datos central · MODELO: Opus · ORDEN: 1º (nada en paralelo) · SIN CÓDIGO
 
 ```
 POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda
@@ -91,44 +100,71 @@ el prompt y CLAUDE.md chocan, gana CLAUDE.md y me lo señalas. Antes de
 tocar un fichero grande, Grep al símbolo y lee el rango — nunca el
 fichero entero.
 
-TAREA: higiene post-bootstrap del repo ONGs-AI (C:\dev\ongs-ai), tres
-correcciones menores de la auditoría de PROMPT-001:
+TAREA: escribir el ADR-001 del proyecto ONGs-AI. SOLO documentación — ni
+una línea de código de producción. Lee primero PROJECT_CONTEXT.md (raíz;
+puede estar sin commitear: el working tree es la verdad e inclúyelo en tu
+commit) y CLAUDE.md.
 
-1. Crea `.gitattributes` en raíz fijando line endings en el repo (independiente
-   de la config global de Windows del usuario):
-     * text=auto
-     *.py text eol=lf
-     *.md text eol=lf
-     *.toml text eol=lf
-   Tras crearlo, renormaliza (`git add --renormalize .`) y revisa qué cambia.
-2. Declara pytest como dependencia de desarrollo en pyproject.toml:
-   `[project.optional-dependencies]` con `dev = ["pytest>=8"]`.
-3. Única fuente de versión: en `[project]` pon `dynamic = ["version"]` y añade
-   `[tool.setuptools.dynamic]` con `version = {attr = "ongs_ai.__version__"}`,
-   eliminando la clave `version` estática. `__init__.py` queda como única verdad.
-4. Comprueba `python -m pytest -q` VERDE.
-5. El working tree contiene cambios del arquitecto en `engineering/06_*`
-   (cierre de PROMPT-001 en la pizarra): inclúyelos en el MISMO commit.
-6. Ritual de cierre completo de CLAUDE.md; UN commit con el nº REAL de tests;
-   sin remoto aún → anótalo en vez de push.
+Producto en una frase: SaaS multi-tenant que vigila convocatorias de
+subvenciones (públicas y privadas, nacional→local, España) y las casa con
+asociaciones de enfermedades raras sin personal, avisa, propone y ayuda a
+preparar la solicitud.
+
+Escribe `engineering/ADR-001-contrato-de-datos.md` con:
+
+1. DECISIÓN: el contrato de datos central congelable. Como mínimo las
+   entidades: Entidad (el tenant: perfil, ámbito territorial, actividades,
+   datos económicos del ejercicio anterior — dinero en CÉNTIMOS enteros),
+   Convocatoria (fuente, objeto, beneficiarios, ámbito, plazos, cuantías,
+   requisitos duros de elegibilidad como datos estructurados), Actividad
+   (tipología cerrada: voluntariado, encuentro de pacientes, charlas… —
+   enum cerrado y extensible SOLO por ADR), Match/Propuesta (estados:
+   detectada → propuesta → aceptada/descartada → en preparación →
+   presentada; asientos inmutables para todo cambio de estado).
+2. Para cada campo: ¿lo llena la IA (extracción) o el dominio (dato
+   verificado)? Los requisitos de elegibilidad DUROS se evalúan
+   deterministas sobre datos estructurados — la IA jamás decide
+   elegibilidad, solo extrae y explica (regla de oro).
+3. ALTERNATIVAS consideradas y por qué no (mínimo: schema libre por JSON
+   vs contrato tipado; matching todo-IA vs híbrido).
+4. CONSECUENCIAS: qué se congela en CLAUDE.md (nombre y ruta del
+   contrato), implicaciones de aislamiento por tenant y anti-hardcoding
+   (nada de una enfermedad o entidad concreta en el schema — todo llega
+   como datos), PII (v1 SIN datos de pacientes; datos económicos de
+   entidad = sensibles, fuera de git).
+5. FASES de implementación (sin código): fase → objetivo → ficheros
+   previstos → 1 prompt completo por fase con este mismo preámbulo.
+   Orientación: F1 contrato+persistencia+tests anti-fuga/anti-hardcoding;
+   F2 ingesta de convocatorias (adapters por portal, red inyectable,
+   apagada en tests); F3 matching determinista + capa IA explicativa;
+   F4 propuesta/aviso; F5 preparación asistida.
+6. PREGUNTAS AL OPERADOR con default cada una (agrupadas al final).
+
+Ritual de cierre: commit ÚNICO (ADR + PROJECT_CONTEXT.md + cambios de
+engineering/06_* presentes en el working tree), pytest VERDE con el nº
+REAL de tests en el mensaje, git status antes del add, sin push (sin
+remoto — anótalo).
 ```
 
 ### Bandeja del OPERADOR
 
-- Pegar PROMPT-002 en una sesión de Claude Code (terminal) y avisar al arquitecto
-  al terminar para auditoría del código real.
-- **Preguntas de producto** (desbloquean ADR-001; responder al arquitecto en chat):
-  1. ¿Qué hace ONGs-AI por una ONG en su primer mes de uso? ¿Cuál es el primer
-     módulo de valor: socios/cuotas, donaciones, subvenciones/memorias, otro?
-  2. ¿Quién es el primer usuario real (una ONG concreta con nombre, o hipotética)?
-  3. ¿Dónde entra la IA en ese primer módulo (redacción, clasificación, extracción…)?
+- Pegar PROMPT-003 en una sesión de Claude Code con **Opus** y avisar al arquitecto
+  al terminar para auditoría.
+- **Lista de portales/fuentes de subvenciones** que usabas (nacional, regional,
+  local + privadas) — bloquea la fase de ingesta, no el ADR.
+- **Captar entidad piloto** (acceso + ingresos/gastos del ejercicio anterior +
+  lista de actividades).
+- Validar (o corregir) los 3 supuestos por defecto del arquitecto: España/castellano;
+  v1 sin datos de pacientes; "desarrollar" = borradores, presenta la entidad.
 - Decidir si se crea remoto git (GitHub/otro) para poder cumplir el `git push` del ritual.
 
 ### Backlog
 
-- ADR-001 (Opus): contrato de datos central tenant/ONG — bloqueado por preguntas de producto.
-- Esqueleto de la app (fija el comando de servidor local en CLAUDE.md) — tras ADR-001.
-- PROJECT_CONTEXT.md: visión y dominio, tras las respuestas de producto.
+- Fases F1–F5 del ADR-001 (los prompts los trae el propio ADR; el arquitecto los
+  audita y los sube a esta cola por orden).
+- Esqueleto de la app (fija el comando de servidor local en CLAUDE.md) — tras F1.
+- Modelo de negocio (las entidades objetivo tienen pocos recursos) — conversación
+  de producto, sin prisa técnica.
 - Ajustar la "vara de medir" de ux-reviewer.md cuando exista sistema visual propio.
 
 ### Recordatorios operativos
