@@ -59,22 +59,25 @@ siguiente acción según este documento.
 
 ## ESTADO VIVO
 
-- **2026-07-18 — Proyecto instanciado desde el starter-kit** (travel-ai-blueprint).
-  Decisiones del operador: producto = **SaaS multi-tenant para ONGs** (alcance funcional
-  en descubrimiento); stack = **Python heredado** (SQLite, pytest hermético); bootstrap
-  vía sesión empleada (PROMPT-001 en cola). CLAUDE.md rellenado v1 — regla de oro nueva:
-  aislamiento por tenant con test anti-fuga.
-- **Aún NO hay repo git ni estructura**: este fichero vive en la raíz hasta que
-  PROMPT-001 lo mueva a `engineering/`. La memoria del espacio Cowork estaba vacía
-  (espacio nuevo): el arquitecto la ha sembrado con el método y los quirks de la máquina.
+- **2026-07-18 — Repo bootstrapeado y AUDITADO: PROMPT-001 APROBADO, HECHO 2101890**
+  (detalle en histórico). Repo git en `main`, esqueleto Python, 1 test VERDE, nada
+  sensible commiteado. Tres notas menores de la auditoría van absorbidas en PROMPT-002
+  (higiene): pytest sin declarar como dependencia dev, line endings sin fijar en el repo
+  (aviso LF→CRLF de la config global de Windows), versión duplicada en pyproject +
+  `__init__.py`. La excepción `!.claude/agents/` del .gitignore es hoy inerte (nada
+  ignora `.claude/`) — se deja por si un ignore futuro la necesita.
+- Decisiones fundacionales del 2026-07-18: producto = **SaaS multi-tenant para ONGs**
+  (alcance en descubrimiento); stack = **Python heredado** (SQLite, pytest hermético).
+  CLAUDE.md v1 con regla de oro nueva: aislamiento por tenant con test anti-fuga.
 - **Duele:** definición de producto vacía. ADR-001 (contrato de datos tenant/ONG)
   bloqueado hasta que el operador responda las preguntas de producto (bandeja).
+- Sin remoto git → el `git push` del ritual queda en "anótalo" hasta que exista.
 
 ## COLA — lo que de verdad queda
 
 ### ➤ PROMPTS PENDIENTES — todos aquí, listos para copiar (se vacían al cerrarse)
 
-#### PROMPT-001 — Bootstrap del repo · MODELO: Sonnet · ORDEN: 1º (nada en paralelo)
+#### PROMPT-002 — Higiene post-bootstrap · MODELO: Sonnet · ORDEN: 1º (puede lanzarse YA; nada en paralelo)
 
 ```
 POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda
@@ -88,32 +91,31 @@ el prompt y CLAUDE.md chocan, gana CLAUDE.md y me lo señalas. Antes de
 tocar un fichero grande, Grep al símbolo y lee el rango — nunca el
 fichero entero.
 
-TAREA: bootstrap del repo ONGs-AI en C:\dev\ongs-ai (hoy NO es repo git).
+TAREA: higiene post-bootstrap del repo ONGs-AI (C:\dev\ongs-ai), tres
+correcciones menores de la auditoría de PROMPT-001:
 
-1. `git init` con rama `main`.
-2. Crea `.gitignore` en raíz con, como mínimo: `.env`, `var/`, `__pycache__/`,
-   `*.log`, `.pytest_cache/`, `clientes/` (datos de ONGs reales), y la excepción
-   `!.claude/agents/`.
-3. Crea carpetas `engineering/` y `.claude/agents/`.
-4. Mueve `06_SIGUIENTES_PASOS.md` → `engineering/06_SIGUIENTES_PASOS.md`.
-   Crea `engineering/06_HISTORICO.md` solo con el título
-   `# 06 HISTÓRICO — arqueología de ONGs-AI`.
-   Mueve `ux-reviewer.md` → `.claude/agents/ux-reviewer.md`.
-   Deja `starter-kit/` y `LEEME-ARRANQUE.md` tal cual (referencia).
-5. Esqueleto Python mínimo: paquete `src/ongs_ai/__init__.py` (con `__version__`),
-   `pyproject.toml` con configuración de pytest (testpaths=tests, pythonpath=src)
-   y `tests/test_smoke.py` con un test que importe `ongs_ai` y verifique
-   `__version__`. Nada de dependencias de red ni de app todavía.
-6. Comprueba que `python -m pytest -q` sale VERDE.
-7. Ritual de cierre de CLAUDE.md: chequeo sintáctico de cada .py, CI verde,
-   `git status` antes del add (ni .env ni var/ ni datos), UN commit con el nº
-   REAL de tests en el mensaje. No hay remoto todavía: anótalo en el resumen
-   en vez de hacer push.
+1. Crea `.gitattributes` en raíz fijando line endings en el repo (independiente
+   de la config global de Windows del usuario):
+     * text=auto
+     *.py text eol=lf
+     *.md text eol=lf
+     *.toml text eol=lf
+   Tras crearlo, renormaliza (`git add --renormalize .`) y revisa qué cambia.
+2. Declara pytest como dependencia de desarrollo en pyproject.toml:
+   `[project.optional-dependencies]` con `dev = ["pytest>=8"]`.
+3. Única fuente de versión: en `[project]` pon `dynamic = ["version"]` y añade
+   `[tool.setuptools.dynamic]` con `version = {attr = "ongs_ai.__version__"}`,
+   eliminando la clave `version` estática. `__init__.py` queda como única verdad.
+4. Comprueba `python -m pytest -q` VERDE.
+5. El working tree contiene cambios del arquitecto en `engineering/06_*`
+   (cierre de PROMPT-001 en la pizarra): inclúyelos en el MISMO commit.
+6. Ritual de cierre completo de CLAUDE.md; UN commit con el nº REAL de tests;
+   sin remoto aún → anótalo en vez de push.
 ```
 
 ### Bandeja del OPERADOR
 
-- Pegar PROMPT-001 en una sesión de Claude Code (terminal) y avisar al arquitecto
+- Pegar PROMPT-002 en una sesión de Claude Code (terminal) y avisar al arquitecto
   al terminar para auditoría del código real.
 - **Preguntas de producto** (desbloquean ADR-001; responder al arquitecto en chat):
   1. ¿Qué hace ONGs-AI por una ONG en su primer mes de uso? ¿Cuál es el primer
@@ -125,7 +127,7 @@ TAREA: bootstrap del repo ONGs-AI en C:\dev\ongs-ai (hoy NO es repo git).
 ### Backlog
 
 - ADR-001 (Opus): contrato de datos central tenant/ONG — bloqueado por preguntas de producto.
-- PROMPT-002: esqueleto de la app (fija el comando de servidor local en CLAUDE.md).
+- Esqueleto de la app (fija el comando de servidor local en CLAUDE.md) — tras ADR-001.
 - PROJECT_CONTEXT.md: visión y dominio, tras las respuestas de producto.
 - Ajustar la "vara de medir" de ux-reviewer.md cuando exista sistema visual propio.
 
