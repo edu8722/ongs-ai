@@ -32,6 +32,8 @@ from ongs_ai.dominio.entidades import (
     DatosEconomicos,
     Entidad,
     EstadoIngesta,
+    FormaJuridica,
+    FormaJuridicaDeclarada,
     Fuente,
     Plazos,
     RequisitoFormal,
@@ -71,6 +73,10 @@ def _actividad_desde_dict(d: dict) -> ActividadDeclarada:
     return ActividadDeclarada(tipo=TipoActividad(d["tipo"]), descripcion=d.get("descripcion"))
 
 
+def _forma_juridica_desde_dict(d: dict) -> FormaJuridicaDeclarada:
+    return FormaJuridicaDeclarada(tipo=FormaJuridica(d["tipo"]), descripcion=d.get("descripcion"))
+
+
 def _entidad_desde_dict(d: dict) -> Entidad:
     datos_economicos = d["datos_economicos_ejercicio_anterior"]
     contacto = d["contacto"]
@@ -79,6 +85,8 @@ def _entidad_desde_dict(d: dict) -> Entidad:
         nombre_legal=d["nombre_legal"],
         nif=d["nif"],
         ambito_territorial=AmbitoTerritorial(d["ambito_territorial"]),
+        forma_juridica=_forma_juridica_desde_dict(d["forma_juridica"]),
+        fecha_constitucion=date.fromisoformat(d["fecha_constitucion"]),
         enfermedad_o_colectivo=d["enfermedad_o_colectivo"],
         actividades=tuple(_actividad_desde_dict(a) for a in d["actividades"]),
         datos_economicos_ejercicio_anterior=DatosEconomicos(

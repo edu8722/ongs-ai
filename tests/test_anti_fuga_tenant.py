@@ -5,7 +5,7 @@ primera nunca debe devolver Match, asientos ni datos económicos de la segunda.
 Corre sobre AMBOS adapters (memoria, sqlite ':memory:') — el aislamiento es una
 garantía del puerto, no de un adapter concreto.
 """
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import pytest
 
@@ -17,6 +17,8 @@ from ongs_ai.dominio.entidades import (
     Contacto,
     DatosEconomicos,
     Entidad,
+    FormaJuridica,
+    FormaJuridicaDeclarada,
     RequisitoFormal,
     TipoActividad,
 )
@@ -40,6 +42,8 @@ def _entidad(entidad_id: str, ingresos_centimos: int) -> Entidad:
         nombre_legal=f"Asociación {entidad_id}",
         nif=f"B{entidad_id}",
         ambito_territorial=AmbitoTerritorial.NACIONAL,
+        forma_juridica=FormaJuridicaDeclarada(tipo=FormaJuridica.ASOCIACION),
+        fecha_constitucion=date(2012, 1, 1),
         enfermedad_o_colectivo=f"colectivo de {entidad_id}",
         actividades=(ActividadDeclarada(tipo=TipoActividad.VOLUNTARIADO),),
         datos_economicos_ejercicio_anterior=DatosEconomicos(

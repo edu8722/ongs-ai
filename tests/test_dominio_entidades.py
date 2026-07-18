@@ -11,12 +11,15 @@ from ongs_ai.dominio.entidades import (
     DatosEconomicos,
     Entidad,
     EstadoIngesta,
+    FormaJuridica,
+    FormaJuridicaDeclarada,
     Fuente,
     Plazos,
     RequisitoFormal,
     RequisitosElegibilidad,
     TipoActividad,
     TipoFuente,
+    normalizar_forma_juridica,
 )
 from ongs_ai.dominio.errores import DineroInvalidoError, ErrorDominio
 
@@ -29,6 +32,8 @@ def _entidad(**overrides) -> Entidad:
         nombre_legal="Asociación de Prueba",
         nif="B00000000",
         ambito_territorial=AmbitoTerritorial.NACIONAL,
+        forma_juridica=FormaJuridicaDeclarada(tipo=FormaJuridica.ASOCIACION),
+        fecha_constitucion=date(2010, 5, 1),
         enfermedad_o_colectivo="colectivo de prueba",
         actividades=(ActividadDeclarada(tipo=TipoActividad.VOLUNTARIADO),),
         datos_economicos_ejercicio_anterior=DatosEconomicos(
@@ -124,3 +129,41 @@ def test_porcentaje_max_financiable_es_puntos_basicos_enteros():
     cuantias = Cuantias(porcentaje_max_financiable=8000)
     assert cuantias.porcentaje_max_financiable == 8000
     assert isinstance(cuantias.porcentaje_max_financiable, int)
+
+
+# --- ADR-002: forma jurídica + fecha de constitución ---------------------
+
+
+def test_entidad_exige_forma_juridica_y_fecha_constitucion():
+    entidad = _entidad()
+    assert entidad.forma_juridica.tipo is FormaJuridica.ASOCIACION
+    assert entidad.fecha_constitucion == date(2010, 5, 1)
+
+
+def test_forma_juridica_declarada_otra_exige_descripcion():
+    with pytest.raises(ErrorDominio):
+        FormaJuridicaDeclarada(tipo=FormaJuridica.OTRA)
+    declarada = FormaJuridicaDeclarada(tipo=FormaJuridica.OTRA, descripcion="cooperativa social")
+    assert declarada.descripcion == "cooperativa social"
+
+
+@pytest.mark.parametrize(
+    "texto,esperado",
+    [
+        ("asociacion", FormaJuridica.ASOCIACION),
+        ("Asociación", FormaJuridica.ASOCIACION),
+        ("ASOCIACIÓN SIN ÁNIMO DE LUCRO", FormaJuridica.ASOCIACION),
+        ("fundación", FormaJuridica.FUNDACION),
+        ("Fundaciones", FormaJuridica.FUNDACION),
+        ("federación", FormaJuridica.FEDERACION_O_CONFEDERACION),
+        ("confederación", FormaJuridica.FEDERACION_O_CONFEDERACION),
+        ("  federacion o confederacion  ", FormaJuridica.FEDERACION_O_CONFEDERACION),
+    ],
+)
+def test_normalizar_forma_juridica_mapea_sinonimos_frecuentes(texto, esperado):
+    assert normalizar_forma_juridica(texto) is esperado
+
+
+@pytest.mark.parametrize("texto", ["", "cooperativa", "sociedad limitada", "otra", "xyz"])
+def test_normalizar_forma_juridica_texto_no_mapeable_devuelve_none(texto):
+    assert normalizar_forma_juridica(texto) is None

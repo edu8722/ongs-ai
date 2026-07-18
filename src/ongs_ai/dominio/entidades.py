@@ -67,6 +67,67 @@ class RequisitoFormal(str, Enum):
     CERTIFICADO_ESTAR_AL_CORRIENTE_SS = "certificado_estar_al_corriente_ss"
 
 
+# --- Forma jurídica (ADR-002 — enum cerrado, extensible SOLO por ADR) ---
+
+
+class FormaJuridica(str, Enum):
+    ASOCIACION = "asociacion"
+    FUNDACION = "fundacion"
+    FEDERACION_O_CONFEDERACION = "federacion_o_confederacion"
+    OTRA = "otra"
+
+
+@dataclass(frozen=True)
+class FormaJuridicaDeclarada:
+    """Forma jurídica declarada por una Entidad. `descripcion` obligatoria si tipo=OTRA."""
+
+    tipo: FormaJuridica
+    descripcion: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.tipo is FormaJuridica.OTRA and not self.descripcion:
+            raise ErrorDominio(
+                "FormaJuridicaDeclarada con tipo=OTRA exige 'descripcion' (ADR-002)"
+            )
+
+
+# --- Normalización determinista forma_juridica_requerida -> FormaJuridica
+#     (ADR-002 — mapeo cerrado, sin LLM en el camino; vive en dominio) -----
+
+_TABLA_TILDES = str.maketrans("áéíóúÁÉÍÓÚñÑ", "aeiouAEIOUnN")
+
+_MAPA_FORMA_JURIDICA: dict[str, FormaJuridica] = {
+    "asociacion": FormaJuridica.ASOCIACION,
+    "asociaciones": FormaJuridica.ASOCIACION,
+    "asociacion sin animo de lucro": FormaJuridica.ASOCIACION,
+    "asociaciones sin animo de lucro": FormaJuridica.ASOCIACION,
+    "asoc": FormaJuridica.ASOCIACION,
+    "fundacion": FormaJuridica.FUNDACION,
+    "fundaciones": FormaJuridica.FUNDACION,
+    "federacion": FormaJuridica.FEDERACION_O_CONFEDERACION,
+    "federaciones": FormaJuridica.FEDERACION_O_CONFEDERACION,
+    "confederacion": FormaJuridica.FEDERACION_O_CONFEDERACION,
+    "confederaciones": FormaJuridica.FEDERACION_O_CONFEDERACION,
+    "federacion o confederacion": FormaJuridica.FEDERACION_O_CONFEDERACION,
+    "federacion/confederacion": FormaJuridica.FEDERACION_O_CONFEDERACION,
+}
+
+
+def normalizar_forma_juridica(texto: str) -> FormaJuridica | None:
+    """Normaliza un `forma_juridica_requerida` (texto libre, extracción IA) contra el
+    mapeo cerrado de sinónimos → `FormaJuridica` (ADR-002 §2.3).
+
+    Determinista, sin LLM: minúsculas + sin tildes + espacios colapsados. `OTRA`
+    nunca es resultado de esta normalización (es declaración humana, no inferible
+    de un texto). Si no hay mapeo posible, devuelve `None` — el requisito queda
+    NO EVALUABLE (degrada limpio, nunca inventa).
+    """
+    if not texto:
+        return None
+    clave = " ".join(texto.strip().lower().translate(_TABLA_TILDES).split())
+    return _MAPA_FORMA_JURIDICA.get(clave)
+
+
 # --- Entidad (§1.1 del ADR — el tenant) ----------------------------------
 
 
@@ -93,6 +154,8 @@ class Entidad:
     nombre_legal: str
     nif: str
     ambito_territorial: AmbitoTerritorial
+    forma_juridica: FormaJuridicaDeclarada
+    fecha_constitucion: date
     enfermedad_o_colectivo: str
     actividades: tuple[ActividadDeclarada, ...]
     datos_economicos_ejercicio_anterior: DatosEconomicos

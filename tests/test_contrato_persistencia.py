@@ -16,6 +16,8 @@ from ongs_ai.dominio.entidades import (
     DatosEconomicos,
     Entidad,
     EstadoIngesta,
+    FormaJuridica,
+    FormaJuridicaDeclarada,
     Fuente,
     Plazos,
     RequisitoFormal,
@@ -44,6 +46,10 @@ def _entidad(entidad_id: str = "ent-contrato-1") -> Entidad:
         nombre_legal="Asociación de Contrato",
         nif="B87654321",
         ambito_territorial=AmbitoTerritorial.PROVINCIAL,
+        forma_juridica=FormaJuridicaDeclarada(
+            tipo=FormaJuridica.OTRA, descripcion="cooperativa social de contrato"
+        ),
+        fecha_constitucion=date(2015, 3, 20),
         enfermedad_o_colectivo="colectivo de contrato",
         actividades=(
             ActividadDeclarada(tipo=TipoActividad.FORMACION),
@@ -100,7 +106,14 @@ def _convocatoria(convocatoria_id: str = "conv-contrato-1") -> Convocatoria:
 def test_roundtrip_entidad(almacen):
     entidad = _entidad()
     almacen.guardar_entidad(entidad)
-    assert almacen.obtener_entidad(entidad.entidad_id) == entidad
+    obtenida = almacen.obtener_entidad(entidad.entidad_id)
+    assert obtenida == entidad
+    # ADR-002: forma_juridica (con descripcion, caso OTRA) y fecha_constitucion
+    # deben sobrevivir la serialización/deserialización sin cambios.
+    assert obtenida.forma_juridica == entidad.forma_juridica
+    assert obtenida.forma_juridica.tipo is FormaJuridica.OTRA
+    assert obtenida.forma_juridica.descripcion == "cooperativa social de contrato"
+    assert obtenida.fecha_constitucion == entidad.fecha_constitucion == date(2015, 3, 20)
 
 
 def test_obtener_entidad_inexistente_devuelve_none(almacen):

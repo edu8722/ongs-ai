@@ -8,12 +8,15 @@ Plan operativo vigente y prompts por paso: `engineering/06_SIGUIENTES_PASOS.md`.
 ## Reglas de oro (INNEGOCIABLES)
 
 - CONTRATO CONGELADO: **Entidad / Convocatoria / Actividad / Match** (ADR-001,
-  `engineering/ADR-001-contrato-de-datos.md`). Implementado en
-  `src/ongs_ai/dominio/entidades.py` (Entidad, Convocatoria, Actividad y value
-  objects) y `src/ongs_ai/dominio/matching_estado.py` (Match, asientos, máquina
-  de estados). Puertos de persistencia en `src/ongs_ai/dominio/puertos.py`;
-  adapters en `src/ongs_ai/adapters/persistencia/` (`memoria.py`, `sqlite.py`,
-  `factory.py`). Enums cerrados. Nunca se modifica sin ADR nuevo.
+  `engineering/ADR-001-contrato-de-datos.md`; ampliado por ADR-002,
+  `engineering/ADR-002-entidad-forma-juridica-antiguedad.md` — Entidad gana
+  `forma_juridica`/`fecha_constitucion` + normalizador determinista
+  `normalizar_forma_juridica`). Implementado en `src/ongs_ai/dominio/entidades.py`
+  (Entidad, Convocatoria, Actividad y value objects) y
+  `src/ongs_ai/dominio/matching_estado.py` (Match, asientos, máquina de estados).
+  Puertos de persistencia en `src/ongs_ai/dominio/puertos.py`; adapters en
+  `src/ongs_ai/adapters/persistencia/` (`memoria.py`, `sqlite.py`, `factory.py`).
+  Enums cerrados. Nunca se modifica sin ADR nuevo.
 - AISLAMIENTO POR TENANT: ninguna lectura/escritura de datos de dominio sin `tenant_id`
   explícito; test anti-fuga cross-tenant desde que exista la primera tabla de dominio.
 - Nada de datos de ONG/cliente hardcodeados en plataforma o plantillas — todo llega

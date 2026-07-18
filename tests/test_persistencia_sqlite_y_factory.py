@@ -1,6 +1,6 @@
 """Adapter SQLite y factory por entorno — herméticos: `:memory:`, nunca disco compartido."""
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from ongs_ai.adapters.persistencia.factory import crear_almacen
 from ongs_ai.adapters.persistencia.memoria import AlmacenMemoria
@@ -11,6 +11,8 @@ from ongs_ai.dominio.entidades import (
     Contacto,
     DatosEconomicos,
     Entidad,
+    FormaJuridica,
+    FormaJuridicaDeclarada,
     RequisitoFormal,
     TipoActividad,
 )
@@ -25,6 +27,8 @@ def _entidad() -> Entidad:
         nombre_legal="Asociación SQLite",
         nif="B12345678",
         ambito_territorial=AmbitoTerritorial.AUTONOMICO,
+        forma_juridica=FormaJuridicaDeclarada(tipo=FormaJuridica.FUNDACION),
+        fecha_constitucion=date(2018, 9, 10),
         enfermedad_o_colectivo="colectivo de prueba sqlite",
         actividades=(ActividadDeclarada(tipo=TipoActividad.FORMACION),),
         datos_economicos_ejercicio_anterior=DatosEconomicos(

@@ -5,7 +5,7 @@ constante de plataforma. Este test crea una enfermedad rara inventada por el
 propio test y comprueba que ningún fichero de `src/ongs_ai/` la menciona ni
 depende de su valor literal.
 """
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from ongs_ai.dominio.entidades import (
@@ -14,6 +14,8 @@ from ongs_ai.dominio.entidades import (
     Contacto,
     DatosEconomicos,
     Entidad,
+    FormaJuridica,
+    FormaJuridicaDeclarada,
     RequisitoFormal,
     TipoActividad,
 )
@@ -29,6 +31,8 @@ def test_enfermedad_inventada_no_esta_hardcodeada_en_la_plataforma():
         nombre_legal="Asociación de Prueba Anti-Hardcoding",
         nif="B99999999",
         ambito_territorial=AmbitoTerritorial.NACIONAL,
+        forma_juridica=FormaJuridicaDeclarada(tipo=FormaJuridica.ASOCIACION),
+        fecha_constitucion=date(2005, 6, 15),
         enfermedad_o_colectivo=ENFERMEDAD_INVENTADA,
         actividades=(ActividadDeclarada(tipo=TipoActividad.VOLUNTARIADO),),
         datos_economicos_ejercicio_anterior=DatosEconomicos(

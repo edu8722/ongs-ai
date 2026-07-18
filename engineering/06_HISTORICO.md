@@ -2,6 +2,32 @@
 
 ## Semana 2026-07-13/19
 
+- **PROMPT-006 — ADR-002: Entidad gana forma jurídica y fecha de constitución**
+  (Sonnet) — **HECHO, APROBADO, 63 tests.** ADR+código en una sola sesión
+  (desviación autorizada por el arquitecto: cambio pequeño y cerrado).
+  `engineering/ADR-002-entidad-forma-juridica-antiguedad.md`: cierra la grieta de
+  contrato que dejaba a F3 sin datos de `Entidad` contra los que evaluar
+  `antiguedad_minima_anios`/`forma_juridica_requerida`. `Entidad` gana
+  `forma_juridica: FormaJuridicaDeclarada` (enum cerrado `FormaJuridica`:
+  asociacion/fundacion/federacion_o_confederacion/otra, `descripcion` obligatoria
+  si `otra` — mismo patrón que `ActividadDeclarada`) y `fecha_constitucion: date`,
+  ambos obligatorios; la antigüedad NO se almacena, se calculará en F3 contra una
+  fecha de referencia explícita. `normalizar_forma_juridica(texto) -> FormaJuridica
+  | None` en dominio puro: mapeo cerrado determinista (minúsculas, sin tildes,
+  sinónimos), sin LLM; `OTRA` nunca es resultado automático; texto no mapeable →
+  `None` (no evaluable, degrada limpio). Serialización/deserialización actualizada
+  en `AlmacenSQLite`; fixtures y round-trip de ambos adapters cubren los campos
+  nuevos; CONTRATO CONGELADO en CLAUDE.md referencia ADR-002. F3 (PROMPT-007)
+  queda desbloqueada, la redacta el arquitecto tras auditar este cierre.
+- **PROMPT-004 + PROMPT-005 — F1: contrato + persistencia + tests** (Sonnet) —
+  **HECHO 7db6c5d + 1dc7c44 (corrección), APROBADO, 48 tests. F1 CERRADA.**
+  Contrato ADR-001 implementado en dominio puro; máquina de estados exacta con
+  terminales; dinero/pb solo int (rechaza bool); factory memoria/SQLite; SQLite con
+  `datos_json` interno pero puerto cumplido con objetos tipados (corrección de
+  auditoría: 7db6c5d devolvía dicts y el anti-fuga solo corría en memoria);
+  degradación limpia con `registros_omitidos_por_corrupcion`; tests de contrato y
+  anti-fuga parametrizados sobre ambos adapters; Protocol runtime_checkable;
+  CONTRATO CONGELADO fijado en CLAUDE.md. Primer push del ritual (origin activo).
 - **PROMPT-003 — ADR-001 contrato de datos** (Opus) — **HECHO 6423f46, APROBADO**.
   `engineering/ADR-001-contrato-de-datos.md` (359 líneas): Entidad/Convocatoria/
   Actividad/Match, frontera IA-extrae/dominio-decide, alternativas (JSON libre,
