@@ -13,7 +13,12 @@ from pathlib import Path
 import pytest
 
 from ongs_ai.adapters.ingesta.base import FiltrosBusqueda
-from ongs_ai.adapters.ingesta.bdns import URL_BUSQUEDA_BDNS, URL_DETALLE_BDNS, FuenteBDNS
+from ongs_ai.adapters.ingesta.bdns import (
+    URL_BUSQUEDA_BDNS,
+    URL_DETALLE_BDNS,
+    FuenteBDNS,
+    _ambito_y_region_desde_regiones,
+)
 from ongs_ai.dominio.entidades import AmbitoTerritorial, EstadoIngesta, TipoFuente
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "ingesta"
@@ -89,6 +94,7 @@ def test_mapeo_convocatoria_estatal_nacional_dinero_con_decimales():
     assert c.fuente.tipo is TipoFuente.PUBLICA_NACIONAL
     assert c.ambito_geografico is AmbitoTerritorial.NACIONAL
     assert c.region is None
+    assert c.provincia is None
     assert c.requisitos_elegibilidad.ambito_territorial_requerido is AmbitoTerritorial.NACIONAL
     assert c.objeto == (
         "Convocatoria ficticia estatal de subvenciones para entidades del tercer "
@@ -112,6 +118,7 @@ def test_mapeo_convocatoria_autonomica_dinero_entero_y_region_separada():
     assert c.fuente.tipo is TipoFuente.PUBLICA_AUTONOMICA
     assert c.ambito_geografico is AmbitoTerritorial.AUTONOMICO
     assert c.region == "CATALUÑA"
+    assert c.provincia is None
     assert c.beneficiarios_elegibles == (
         "PERSONAS JURÍDICAS QUE NO DESARROLLAN ACTIVIDAD ECONÓMICA; "
         "ASOCIACIONES DECLARADAS DE UTILIDAD PÚBLICA"
@@ -127,11 +134,12 @@ def test_convocatoria_local_sin_fecha_cierre_no_se_promociona():
 
     c = convocatorias["bdns-100003"]
     assert c.fuente.tipo is TipoFuente.PUBLICA_LOCAL
-    # La región de la convocatoria LOCAL sigue siendo una única región "ES*", así
-    # que el ambito_geografico calculado es AUTONOMICO — tipo (jerarquía) y
+    # La región de la convocatoria LOCAL trae un código NUTS3 (provincia), así
+    # que el ambito_geografico calculado es PROVINCIAL — tipo (jerarquía) y
     # ambito_geografico (regiones) se derivan de campos distintos y pueden diferir.
-    assert c.ambito_geografico is AmbitoTerritorial.AUTONOMICO
-    assert c.region == "COMUNIDAD FICTICIA"
+    assert c.ambito_geografico is AmbitoTerritorial.PROVINCIAL
+    assert c.provincia == "Córdoba"
+    assert c.region is None
     assert c.cuantias.importe_maximo_centimos == 1_500_075
     assert c.plazos.fecha_cierre is None
     assert c.estado_ingesta is EstadoIngesta.EXTRAIDA
@@ -144,12 +152,65 @@ def test_convocatoria_otros_nivel1_usa_tipo_conservador_y_varias_regiones_es_nac
     c = convocatorias["bdns-100004"]
     # nivel1="OTROS" no tiene mapeo claro -> valor más conservador: publica_local.
     assert c.fuente.tipo is TipoFuente.PUBLICA_LOCAL
-    # Varias regiones -> nacional, sin region.
+    # Varias regiones -> nacional, sin region ni provincia.
     assert c.ambito_geografico is AmbitoTerritorial.NACIONAL
     assert c.region is None
+    assert c.provincia is None
     assert c.beneficiarios_elegibles == ""
     assert c.cuantias.importe_maximo_centimos is None
     assert c.estado_ingesta is EstadoIngesta.EXTRAIDA
+
+
+# --- _ambito_y_region_desde_regiones (unidad) -------------------------------
+
+
+def test_ambito_region_sin_regiones_es_nacional():
+    assert _ambito_y_region_desde_regiones([]) == (AmbitoTerritorial.NACIONAL, None, None)
+
+
+def test_ambito_region_multiples_regiones_es_nacional():
+    regiones = [{"descripcion": "ES51 - CATALUÑA"}, {"descripcion": "ES52 - COMUNIDAD FICTICIA"}]
+    assert _ambito_y_region_desde_regiones(regiones) == (AmbitoTerritorial.NACIONAL, None, None)
+
+
+def test_ambito_region_es_sola_espana_es_nacional():
+    assert _ambito_y_region_desde_regiones([{"descripcion": "ES - ESPAÑA"}]) == (
+        AmbitoTerritorial.NACIONAL,
+        None,
+        None,
+    )
+
+
+def test_ambito_region_nuts2_dos_digitos_es_autonomico():
+    assert _ambito_y_region_desde_regiones([{"descripcion": "ES51 - CATALUÑA"}]) == (
+        AmbitoTerritorial.AUTONOMICO,
+        "CATALUÑA",
+        None,
+    )
+
+
+def test_ambito_region_nuts3_tres_digitos_es_provincial():
+    assert _ambito_y_region_desde_regiones([{"descripcion": "ES613 - Córdoba"}]) == (
+        AmbitoTerritorial.PROVINCIAL,
+        None,
+        "Córdoba",
+    )
+
+
+def test_ambito_region_codigo_no_es_es_nacional():
+    assert _ambito_y_region_desde_regiones([{"descripcion": "XXXX - TODO EL MUNDO"}]) == (
+        AmbitoTerritorial.NACIONAL,
+        None,
+        None,
+    )
+
+
+def test_ambito_region_codigo_no_numerico_es_nacional():
+    assert _ambito_y_region_desde_regiones([{"descripcion": "ESAB - RARO"}]) == (
+        AmbitoTerritorial.NACIONAL,
+        None,
+        None,
+    )
 
 
 # --- Paginación ------------------------------------------------------------

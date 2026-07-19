@@ -11,18 +11,18 @@ real en 2026-07-18, ver `investigacion/R1_informe.md`):
   claro en la jerarquía) usa el valor más conservador, `publica_local` (el
   ámbito más restrictivo, para no sobre-prometer una convocatoria nacional a
   una entidad fuera de su alcance real).
-- `ambito_geografico` + `region` se derivan de `regiones`: una única región
-  con código que empieza por "ES" y no es exactamente "ES" -> autonomico, con
-  `region` = el nombre tras el guion ("ES51 - CATALUÑA" -> "CATALUÑA"); cero
-  regiones, más de una, o código no-"ES" (p. ej. "ES - ESPAÑA",
-  "XXXX - TODO EL MUNDO") -> nacional, sin `region`. Simplificación conocida y
-  deliberada: la BDNS mezcla códigos NUTS2 (autonómico) y NUTS3 (provincial,
-  p. ej. "ES616 - Jaén" en una convocatoria LOCAL de una diputación) bajo el
-  mismo campo `regiones`, sin que la API distinga el nivel de forma fiable
-  desde este único campo — este adapter no intenta desambiguar y siempre usa
-  `autonomico` cuando hay una única región con código "ES*"; afinar el nivel
-  provincial queda anotado como candidato a ADR futuro si el matching
-  provincial de F3 lo necesita en la práctica (nota ya existente en
+- `ambito_geografico` + `region`/`provincia` se derivan de `regiones` a partir
+  del código NUTS que precede a " - " en la descripción de la ÚNICA región
+  (cuando hay exactamente una): parte numérica vacía tras "ES" (código == "ES")
+  -> nacional; exactamente 2 dígitos (NUTS2, CCAA) -> autonomico, con `region`
+  = el nombre tras el guion ("ES51 - CATALUÑA" -> "CATALUÑA"); exactamente 3
+  dígitos (NUTS3, provincia) -> provincial, con `provincia` = el nombre tras
+  el guion ("ES616 - Jaén" -> "Jaén"); cualquier otra cosa (código que no
+  empieza por "ES", parte no numérica, u otro número de dígitos) -> nacional,
+  sin `region` ni `provincia`. Cero regiones o más de una -> nacional. Derivar
+  la CCAA a partir de un código NUTS3 (tabla NUTS3->NUTS2) queda fuera de
+  alcance de este adapter — candidato a ADR futuro si el matching provincial
+  de F3 lo necesita en la práctica (nota ya existente en
   `dominio/elegibilidad.py` sobre el mismo hueco para `local`/`municipio`).
 - `presupuestoTotal` (euros, puede llegar como float) -> se convierte a
   `cuantias.importe_maximo_centimos` en céntimos enteros con redondeo
@@ -83,18 +83,30 @@ def _tipo_fuente_desde_nivel1(nivel1: str | None) -> TipoFuente:
     return _MAPA_NIVEL1_TIPO_FUENTE.get(nivel1 or "", TipoFuente.PUBLICA_LOCAL)
 
 
-def _ambito_y_region_desde_regiones(regiones: list[dict]) -> tuple[AmbitoTerritorial, str | None]:
+def _ambito_y_region_desde_regiones(
+    regiones: list[dict],
+) -> tuple[AmbitoTerritorial, str | None, str | None]:
+    """Deriva (ambito_geografico, region, provincia) a partir del código NUTS de
+    la ÚNICA región (cuando hay exactamente una); ver regla completa en la
+    nota del docstring del módulo."""
     descripciones = [
         (r.get("descripcion") or "").strip() for r in (regiones or []) if r.get("descripcion")
     ]
     if len(descripciones) != 1:
-        return AmbitoTerritorial.NACIONAL, None
+        return AmbitoTerritorial.NACIONAL, None, None
     codigo, _, nombre = descripciones[0].partition(" - ")
     codigo = codigo.strip()
     nombre = nombre.strip()
-    if not nombre or not codigo.startswith("ES") or codigo == "ES":
-        return AmbitoTerritorial.NACIONAL, None
-    return AmbitoTerritorial.AUTONOMICO, nombre
+    if not nombre or not codigo.startswith("ES"):
+        return AmbitoTerritorial.NACIONAL, None, None
+    digitos = codigo[2:]
+    if not digitos.isdigit():
+        return AmbitoTerritorial.NACIONAL, None, None
+    if len(digitos) == 2:
+        return AmbitoTerritorial.AUTONOMICO, nombre, None
+    if len(digitos) == 3:
+        return AmbitoTerritorial.PROVINCIAL, None, nombre
+    return AmbitoTerritorial.NACIONAL, None, None
 
 
 def _beneficiarios_desde_lista(tipos_beneficiarios: list[dict]) -> str:
@@ -127,7 +139,9 @@ def _objeto_desde_detalle(detalle: dict) -> str:
 def _mapear_convocatoria(detalle: dict, *, ahora: datetime) -> Convocatoria:
     organo = detalle.get("organo") or {}
     codigo_bdns = str(detalle["codigoBDNS"])
-    ambito_geografico, region = _ambito_y_region_desde_regiones(detalle.get("regiones") or [])
+    ambito_geografico, region, provincia = _ambito_y_region_desde_regiones(
+        detalle.get("regiones") or []
+    )
 
     convocatoria = Convocatoria(
         convocatoria_id=f"bdns-{codigo_bdns}",
@@ -152,6 +166,7 @@ def _mapear_convocatoria(detalle: dict, *, ahora: datetime) -> Convocatoria:
         actualizado_en=ahora,
         documento_origen_ref=detalle.get("urlBasesReguladoras"),
         region=region,
+        provincia=provincia,
     )
     return promocionar_si_completa(convocatoria)
 

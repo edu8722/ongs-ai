@@ -16,7 +16,7 @@
   "descripcionLeng": null,
   "tiposBeneficiarios": [{"descripcion": "PERSONAS JURÍDICAS QUE NO DESARROLLAN ACTIVIDAD ECONÓMICA"}],
   "sectores": [{"descripcion": "ACTIVIDADES SANITARIAS Y DE SERVICIOS SOCIALES", "codigo": "R"}],
-  "regiones": [{"descripcion": "ES52 - COMUNIDAD FICTICIA"}],
+  "regiones": [{"descripcion": "ES613 - Córdoba"}],
   "descripcionFinalidad": "Servicios Sociales y Promoción Social",
   "descripcionBasesReguladoras": "Ordenanza general ficticia de subvenciones del ayuntamiento",
   "urlBasesReguladoras": null,

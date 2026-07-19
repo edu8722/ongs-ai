@@ -62,65 +62,77 @@ siguiente acción según este documento.
 
 ## ESTADO VIVO
 
-- **2026-07-18 (noche) — F1 CERRADA Y APROBADA (7db6c5d + corrección 1dc7c44,
-  48 tests, pushed).** Contrato ADR-001 implementado, puerto cumplido en ambos
-  adapters, anti-fuga y round-trip parametrizados, degradación limpia. Detalle en
-  histórico. Estado de fases: F1 ✔ · F2 bloqueada (lista de portales) · F3 siguiente
-  tras ADR-002 · F4/F5 lejos.
-- **F3 CERRADA Y AUDITADA — HECHO fc04348, 101 tests (2026-07-18 noche):**
-  guardarraíl determinista + matching + capa IA con degradación limpia. Detalle en
-  histórico. Estado de fases: F1 ✔ · ADR-002 ✔ · F3 ✔ · **F2 EN COLA (PROMPT-008,
-  adapter BDNS)** · F4/F5 pendientes. Notas de auditoría: redundancia de ámbito en
-  el contrato → candidato ADR-003 (backlog); política de persistencia de matches no
-  elegibles → decidir en F4.
-- **2026-07-18 — NUEVO ENCARGO DE PRODUCTO (feedback del operador → spec):** la
-  plataforma capta proactivamente. Dos investigaciones profundas DEL ARQUITECTO (no
-  son prompts de código): **R1 — catálogo de fuentes de subvenciones** (estatales/
-  autonómicas/locales/privadas: URL, cómo se consulta, qué elegibilidad publican) →
-  sustituye la "lista de portales" pendiente del operador y desbloquea la spec de F2;
-  **R2 — directorio de asociaciones de EERR en España** con contacto público → nutre
-  captación y candidatas a piloto. Decisiones del operador: R1 primero; R2 INCLUYE
-  personas visibles públicamente (⚠ dato personal: el fichero de prospección se trata
-  fuera de git — `investigacion/asociaciones*` gitignorado; responsable del
-  tratamiento: el operador); formato Excel + informe.
-- **R1 ENTREGADA (2026-07-18): `investigacion/R1_catalogo_fuentes_subvenciones.xlsx`
-  + `R1_informe.md`.** Hallazgo clave VERIFICADO 3-0: la BDNS/SNPSAP tiene API REST
-  pública sin auth (Swagger) que agrega TODAS las convocatorias públicas de España
-  (estatal+CCAA+local, con campos que mapean casi 1:1 al contrato) ⇒ **F2 = un solo
-  adapter `bdns.py` cubre todo el sector público**; privadas (FEDER, la Caixa, ONCE)
-  y agregador SolucionesONG en adapters posteriores. Nota: la verificación
-  adversarial quedó incompleta (límite de sesión, 22 claims de fuentes oficiales
-  marcadas "pendiente", 0 refutadas) — re-pasada opcional. R2 (directorio
-  asociaciones EERR) PENDIENTE de lanzar.
-- **Lección para el ritual** (sigue vigente, 3 casos): los resúmenes y acciones de
-  las sesiones exceden o desmienten lo real — mensaje de commit (PROMPT-002),
-  "decisión conservadora" que rompía el puerto (PROMPT-004), auto-cierre con
-  "APROBADO" en la pizarra antes de la auditoría (PROMPT-006 — de ahí la regla nueva
-  del preámbulo). Auditar SIEMPRE el artefacto real; el veredicto es del arquitecto.
-- Cerrado al histórico: PROMPT-001 (2101890), 002 (1f50ed8), 003/ADR-001 (6423f46),
-  004+005/F1 (7db6c5d+1dc7c44), 006/ADR-002 (e97baa5). Stack Python/SQLite/pytest
-  hermético.
-- **Decisiones del operador (2026-07-18) sobre ADR §6 — cerradas:** (1) módulo
-  `src/ongs_ai/dominio/` ✔; (2) **F5 AMPLIADO sobre el default**: no solo memoria
-  narrativa — análisis de TODO lo que la entidad necesita para poder presentarse
-  (checklist de requisitos documentales con gap: qué tiene / qué le falta) + borrador
-  de TODOS los documentos entregables a partir de los datos que la entidad facilite
-  (probable ADR de ampliación de contrato al llegar F5: entidad DocumentoRequerido);
-  (3) aviso F4 = **email + panel** en la plataforma (el panel adelanta la necesidad
-  del esqueleto web — subir en backlog); (4) Match nuevo tras descartada ✔;
-  (5) dedupe `portal`+`url_origen` ✔.
+- **2026-07-19 — F2 CERRADA Y AUDITADA — APROBADO (`5a52d27`, 126 tests, pushed).**
+  Adapter de ingesta contra la API pública de la BDNS. Auditoría INDEPENDIENTE del
+  arquitecto (no solo el resumen de la sesión): leído el código real de todos los
+  ficheros tocados + reproducción parcial en sandbox (sin pytest/PyPI: 0 fallos de
+  import en `src`, **99 casos ejecutados en verde y 0 rojos** — 71 sin fixture + 28
+  del contrato de persistencia/dedupe corridos sobre `memoria` y `sqlite :memory:`—,
+  con las rutas de degradación limpia comprobadas). Todas las reglas de oro se
+  respetan: dinero euros→céntimos `int` vía `Decimal` (nunca float al dominio),
+  filtros como datos (nada hardcodeado), transporte inyectable con red apagada en
+  tests, dedupe idempotente `portal`+`url_origen` (nuevo puerto
+  `obtener_por_url_origen` cumplido en AMBOS adapters), degradación limpia, promoción
+  `EXTRAIDA→VERIFICADA` como función de dominio pura. Detalle → histórico.
+  **Estado de fases: F1 ✔ · ADR-002 ✔ · F3 ✔ · F2 ✔ (con corrección PROMPT-009
+  pendiente) · PROMPT-009 (F2-fix ámbito provincial) SIGUIENTE · F4 después · F5 lejos.**
+- **Smoke test de F2 EJECUTADO por el operador (2026-07-19) — API viva OK.** 5
+  convocatorias reales mapeadas de punta a punta: nombres de campo
+  (`numeroConvocatoria`/`content`/`last`, `codigoBDNS`, `numConv`, `presupuestoTotal`,
+  `regiones`, `organo.nivel1`) CONFIRMADOS contra la API real; dinero cae bien en
+  céntimos int; `estado_ingesta` extraida/verificada correcto (las nominativas/
+  convenios sin plazo de solicitud quedan `extraida` — guardarraíl funcionando, no
+  fallo). El parámetro `tipoBeneficiario` no se ejerció (búsqueda sin filtro) —
+  seguirá pendiente hasta que se use un filtro por beneficiario.
+- **BUG CONFIRMADO EN VIVO por el smoke → corrección PROMPT-009 (F2-fix).** El adapter
+  etiqueta los códigos NUTS3 (provincia, `ES`+3 dígitos: Bizkaia, Pontevedra, Córdoba)
+  como `ambito_geografico=autonomico` con la provincia en `region`, cuando el contrato
+  YA admite `AmbitoTerritorial.PROVINCIAL` y `Convocatoria.provincia`. NO es cambio de
+  contrato: es que el mapeo de `bdns.py` no usa esos valores. Y NO es caso borde — las
+  locales/provinciales son una fracción enorme de la BDNS, así que rompe el matching
+  territorial de F3 (que consume `ambito_geografico`). Corrección de adapter, SIN ADR.
+  Prompt listo en la cola (ORDEN 1º, antes de F4).
+- **R1 (catálogo de fuentes) ENTREGADA (`investigacion/R1_*`)**, commiteada en
+  `5a52d27` (xlsx + informe, sin datos personales). Hallazgo clave: BDNS = una sola
+  API cubre todo el sector público → por eso F2 fue un único adapter. Verificación
+  adversarial de las 22 fuentes de R1 quedó incompleta (0 refutadas): re-pasada
+  OPCIONAL, backlog.
+- **R2 (directorio asociaciones EERR) — 1ª PASADA ENTREGADA por el ARQUITECTO
+  (2026-07-19).** La sesión Fable la había lanzado (18-jul ~23:30) pero se quedó sin
+  tokens antes de producir fichero; se rehízo de cero. Entregables FUERA de git
+  (gitignore `investigacion/asociaciones*` verificado con `git check-ignore`):
+  `investigacion/asociaciones_EERR_directorio.xlsx` (hojas Léeme/Asociaciones/
+  Directorios) + `asociaciones_EERR_informe.md`. Contenido: **9 directorios
+  agregadores mapeados con veredicto de scrapeabilidad** (FEDER 476 y Somos Pacientes
+  —incl. PDF de 171 EERR— = scrapeabilidad ALTA, las vías para la extracción
+  sistemática) + **81 asociaciones concretas con contacto público**, mayoría pequeñas
+  (cliente objetivo), de casi todas las CCAA. Método: 3 investigaciones web en
+  paralelo (FEDER / Somos Pacientes+POP / federaciones autonómicas), dato tomado
+  literal de fuente (vacío = no encontrado, nunca inventado), solapes consolidados.
+  ⚠ Dato personal: responsable del tratamiento = el operador; no difundir.
+  Expectativa honesta cumplida: NO es el censo (~476 solo FEDER) — es mapa + 1ª tanda;
+  la extracción completa = 2ª pasada sistemática (o feature de la plataforma).
+  El informe propone candidatas a piloto (GERNA, PERA, ARER, ASERCA, ABAIMAR, red
+  ASEM regional) → el arquitecto ofrece redactar el mensaje de propuesta.
+- **Lección del ritual** (sigue vigente, 3 casos + este 4º refuerzo): los resúmenes
+  de las sesiones exceden o desmienten lo real — mensaje de commit (PROMPT-002),
+  "decisión conservadora" que rompía el puerto (PROMPT-004), auto-cierre "APROBADO"
+  antes de auditar (PROMPT-006). En F2 el resumen sí coincidió con lo real, pero se
+  auditó igual leyendo el código y reproduciendo tests. Auditar SIEMPRE el artefacto.
 - **Duele:** sigue sin entidad piloto. Test anti-hardcoding v1 es canario débil —
-  endurecer en F3+. Contrato sin `municipio` en Entidad → ámbito LOCAL no evaluable
-  automáticamente en F3 (ADR si el matching local lo pide). F2 YA DESBLOQUEADA por
-  R1 (spec: adapter BDNS primero) — su prompt se redacta tras auditar F3.
+  endurecer en F4+. Contrato sin `municipio` en Entidad → ámbito LOCAL no evaluable
+  automáticamente (ADR si el matching local lo pide).
 - **Remoto git ACTIVO**: `origin` = github.com/edu8722/ongs-ai (privado), al día
-  (`origin/main` = e97baa5). El `git push` del ritual es OBLIGATORIO en cada cierre.
+  (`origin/main` = `5a52d27`). El `git push` del ritual es OBLIGATORIO en cada cierre.
+- **Nota de sincronía de pizarra:** los cambios de este 06 (cierre de F2) están en el
+  working tree pero AÚN SIN COMMIT — los arrastra el próximo commit de empleado
+  (el de F4), según el modelo. Si tardara, el operador puede commitearlos sueltos.
 
 ## COLA — lo que de verdad queda
 
 ### ➤ PROMPTS PENDIENTES — todos aquí, listos para copiar (se vacían al cerrarse)
 
-#### PROMPT-008 — F2: ingesta de convocatorias vía API BDNS · MODELO: Sonnet · ORDEN: 1º (nada en paralelo)
+#### PROMPT-009 — F2-fix: ámbito provincial (NUTS3) en el adapter BDNS · MODELO: Sonnet · ORDEN: 1º (antes de F4; nada en paralelo)
 
 ```
 POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda
@@ -137,102 +149,103 @@ arquitecto: no cierres items, no te declares APROBADO, no muevas nada al
 histórico — limítate a incluir en tu commit los cambios de
 engineering/06_* que ya estén en el working tree, tal cual estén.
 
-TAREA: F2 del ADR-001 — ingesta de convocatorias vía la API pública de la
-BDNS. Contexto (verificado en investigación R1, ver
-investigacion/R1_informe.md): la BDNS/SNPSAP agrega TODAS las convocatorias
-públicas de España (estatal, CCAA, diputaciones, ayuntamientos) y expone
-API REST pública SIN autenticación (Swagger:
-https://www.infosubvenciones.es/bdnstrans/doc/swagger). Búsqueda paginada
-JSON: /bdnstrans/api/convocatorias/busqueda?page=N&pageSize=M. Detalle:
-/bdnstrans/api/convocatorias?numConv=<códigoBDNS> con campos
-tiposBeneficiarios, regiones, fechaInicioSolicitud, fechaFinSolicitud,
-abierto, presupuestoTotal, finalidad, urlBasesReguladoras, organo y
-jerarquía administrativa nivel1/nivel2/nivel3.
+TAREA: corrección de F2 (adapter BDNS). Bug CONFIRMADO con la API viva
+(smoke test del operador): las convocatorias con una única región cuyo
+código es NUTS3 (provincia, "ES"+3 dígitos, p. ej. "ES213 - Bizkaia",
+"ES114 - Pontevedra", "ES613 - Córdoba") se mapean como
+ambito_geografico=AUTONOMICO con la provincia metida en `region`. El
+contrato (dominio/entidades.py) YA admite AmbitoTerritorial.PROVINCIAL y el
+campo Convocatoria.provincia — NO hay cambio de contrato, solo el mapeo de
+bdns.py no los usa. NO toques el contrato ni ningún ADR.
 
-1. `src/ongs_ai/adapters/ingesta/base.py`: Protocol `FuenteConvocatorias`
-   (p. ej. `buscar(filtros) -> Iterable[Convocatoria]`) + transporte HTTP
-   INYECTABLE (Protocol o callable url->respuesta). Los tests usan SIEMPRE
-   transporte stub con fixtures grabadas — red apagada, cero peticiones
-   reales en tests (regla de oro).
-2. `src/ongs_ai/adapters/ingesta/bdns.py`: `FuenteBDNS` contra esa API.
-   Mapeo DETERMINISTA (aquí no hay LLM: la API ya da datos estructurados)
-   a `Convocatoria` del contrato:
-   - `fuente`: portal="BDNS", `url_origen` = URL de detalle con el código
-     BDNS (clave natural de dedupe, ADR-001 §6.5), `tipo` desde la
-     jerarquía administrativa (estatal→publica_nacional,
-     autonómica→publica_autonomica, local→publica_local; sin mapeo claro →
-     el valor más conservador y documéntalo).
-   - `regiones` → `ambito_geografico` + `region` (código "ES51 - CATALUÑA"
-     → separa código y nombre; varias regiones o "ES - ESPAÑA" → nacional).
-   - fechas de solicitud → `plazos`; `finalidad`/descripcion → `objeto`;
-     `tiposBeneficiarios` (texto) → `beneficiarios_elegibles`.
-   - `presupuestoTotal` llega en EUROS (posible float) → convierte a
-     CÉNTIMOS int en la frontera del adapter (round determinista); jamás
-     float hacia el dominio (regla de oro).
-   - `requisitos_elegibilidad`: solo lo derivable determinista (p. ej.
-     ámbito); el resto queda vacío para la capa de extracción IA futura.
-   - `estado_ingesta`: EXTRAIDA al mapear; una función de dominio pequeña
-     promociona a VERIFICADA solo si los campos mínimos están presentes
-     (defínelos y documéntalos: al menos objeto, plazos con fecha_cierre,
-     ambito_geografico y beneficiarios no vacíos).
-   - Filtros de búsqueda (texto, fechas, beneficiario) SIEMPRE como
-     parámetros/datos — ninguna enfermedad ni entidad hardcodeada.
-3. Dedupe idempotente: re-ingestar la misma convocatoria (mismo
-   portal+url_origen) NO duplica — comprueba contra el almacén antes de
-   guardar (añade al puerto lo mínimo necesario si hace falta, p. ej.
-   obtener_por_url_origen) y testéalo con doble pasada.
-4. Fixtures: 2-3 respuestas JSON REALISTAS de la API (recórtalas a mano,
-   sintéticas pero con la forma real de los campos del Swagger; jamás
-   datos de entidades reales inventando cifras) en tests/fixtures/ingesta/.
-5. `scripts/smoke_bdns.py`: script MANUAL (fuera de pytest) que el
-   OPERADOR ejecutará con red real: pide 1 página de la API, mapea e
-   imprime un resumen. Documenta en su docstring que hace red y no se
-   ejecuta en CI.
-6. Git de la carpeta `investigacion/` (hoy sin trackear): añade a
-   .gitignore la línea `investigacion/asociaciones*` (prospección con
-   datos personales, NUNCA a git) y commitea SOLO
-   `investigacion/R1_catalogo_fuentes_subvenciones.xlsx` y
-   `investigacion/R1_informe.md` (catálogo sin datos personales).
-7. Tests: mapeo completo BDNS→Convocatoria (incluido dinero a céntimos y
-   regiones), paginación, dedupe en doble pasada, promoción
-   EXTRAIDA→VERIFICADA (con y sin campos mínimos), transporte que falla →
-   degrada limpio (sin excepción al dominio; registra y sigue), y todo el
-   resto de la suite VERDE.
-8. `python -m pytest -q` VERDE, herméticos. Incluye los cambios de
-   `engineering/06_*` del working tree tal cual (cierre de F3 por el
-   arquitecto).
+Alcance EXACTO — solo `_ambito_y_region_desde_regiones` (y su docstring) en
+src/ongs_ai/adapters/ingesta/bdns.py, más fixtures/tests. La función pasa a
+devolver una TERNA (ambito, region, provincia) — o refactor equivalente — y
+`_mapear_convocatoria` rellena `region`/`provincia` en consecuencia. Regla
+determinista, a partir del código que precede a " - " en la descripción de
+la ÚNICA región (cuando hay exactamente una):
+  - parte numérica tras "ES":
+    - vacía (código == "ES") → NACIONAL, region=None, provincia=None.
+    - EXACTAMENTE 2 dígitos (NUTS2, CCAA) → AUTONOMICO, region=nombre,
+      provincia=None. (comportamiento actual, se conserva)
+    - EXACTAMENTE 3 dígitos (NUTS3, provincia) → PROVINCIAL, provincia=nombre,
+      region=None. (NUEVO — derivar la CCAA desde el NUTS3 queda FUERA de
+      alcance: no montes tabla NUTS3→NUTS2, déjalo anotado como mejora futura)
+    - cualquier otra cosa (no empieza por "ES", parte no numérica, etc.) →
+      NACIONAL, region=None, provincia=None. (default conservador actual)
+  - cero regiones o más de una → NACIONAL, region=None, provincia=None.
+    (se conserva)
+NO uses `organo.nivel1`/`tipo` para decidir el ámbito: `tipo` (nivel
+administrativo de la fuente) y `ambito_geografico` (granularidad geográfica
+de `regiones`) son ortogonales y pueden diferir — ya está así documentado y
+testeado; mantenlo. No intentes distinguir municipal de provincial (la BDNS
+no da municipio en `regiones`): NUTS3 → PROVINCIAL es lo máximo determinista.
+
+Sigue mirroreando `requisitos_elegibilidad.ambito_territorial_requerido =
+ambito_geografico` como hasta ahora (ahora también podrá ser PROVINCIAL).
+
+Actualiza la docstring del módulo/función: sustituye la nota de
+"simplificación conocida: no desambigua NUTS2/NUTS3" por la regla nueva.
+
+FIXTURES/TESTS:
+  - Ajusta el fixture de la convocatoria LOCAL (detalle_100003): su región
+    debe llevar un código NUTS3 real de 3 dígitos (p. ej. "ES613 - Córdoba");
+    el test pasa a esperar ambito_geografico=PROVINCIAL, provincia="Córdoba",
+    region=None (y tipo sigue PUBLICA_LOCAL — sigue demostrando que tipo y
+    ámbito difieren, ahora bien).
+  - Conserva un caso NUTS2 (ES+2 dígitos) → AUTONOMICO con region.
+  - Conserva el caso multi-región / "ES - ESPAÑA" → NACIONAL.
+  - Añade un caso de código raro (no-ES o no numérico) → NACIONAL.
+  - Verifica que la promoción EXTRAIDA→VERIFICADA sigue igual (ambito_geografico
+    nunca es None, así que los campos mínimos no cambian).
+  - `python -m pytest -q` VERDE y HERMÉTICO (sin red). Chequeo sintáctico de
+    cada fichero tocado.
+
+Incluye en tu commit los cambios de engineering/06_* que ya estén en el
+working tree, tal cual estén (cierre de F2 + entrega de R2 por el arquitecto).
 
 Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
-`git status` antes del add, `git push` al terminar.
+`git status` antes del add (ni .env, ni var/, ni investigacion/asociaciones*),
+`git push` al terminar.
 ```
 
 ### Bandeja del OPERADOR
 
-- Pegar PROMPT-008 (F2, ingesta BDNS) en una sesión de Claude Code (Sonnet) y avisar
-  al arquitecto al terminar para auditoría.
-- Tras el cierre de F2: ejecutar `python scripts/smoke_bdns.py` en tu terminal (hace
-  red real) y pegar el resumen al arquitecto — verificación humana de la API viva.
-- Revisar el Excel de R1 y decir al arquitecto si falta algún portal de los que usabas.
+- **F2 — smoke test HECHO (2026-07-19):** API viva OK; destapó el bug de ámbito
+  provincial → corrección en PROMPT-009.
+- **Pegar PROMPT-009 (F2-fix)** en una sesión de Claude Code (Sonnet) y avisarme al
+  terminar para auditoría. Es la siguiente acción de código (antes de F4).
+- Revisar el Excel de R1 y decirme si falta algún portal de los que usabas.
 - **Captar entidad piloto** (acceso + ingresos/gastos del ejercicio anterior +
-  lista de actividades). El arquitecto ofrece redactar el mensaje de propuesta.
+  lista de actividades). Te ofrezco redactar el mensaje de propuesta cuando quieras
+  — R2 nos dará candidatas.
+- Decidir conmigo la política de persistencia de matches no elegibles (entra en F4).
 
 ### Backlog
 
-- F4 propuesta/aviso (email + panel; decide política de persistencia de matches no
-  elegibles) · F5 preparación asistida (alcance ampliado por el operador) — prompt
-  al quedar AUDITADA la fase anterior (ADR-001 §5).
-- ADR-003 candidato: redundancia de ámbito en el contrato (`ambito_geografico`+
-  region/provincia vs `ambito_territorial_requerido` sin consumir) — limpiar.
-- R2 — directorio de asociaciones EERR: **EN CURSO** (lanzada 18-jul ~23:30, tras el
-  reset del límite). Estrategia: primero directorios agregadores (FEDER ~400 miembros,
-  SOMOS Pacientes, POP, federaciones autonómicas) + extracción de asociaciones
-  concretas con contacto. Entregable FUERA de git (`investigacion/asociaciones*`,
-  gitignorado en PROMPT-008). Verificación pendiente de R1: opcional, después.
+- **F4 propuesta/aviso** (email + panel; el panel adelanta la necesidad del esqueleto
+  web — subir prioridad). Decisión abierta a cerrar antes de redactar el prompt: NO
+  persistir el Match de cada pareja no elegible a escala BDNS (hoy `detectar_matches`
+  crea Match para toda pareja — literal del prompt de F3). Candidato a mini-ADR.
+- **F5 preparación asistida** (alcance ampliado por el operador: checklist de
+  requisitos documentales con gap qué-tiene/qué-falta + borrador de TODOS los
+  documentos entregables; probable ADR de ampliación de contrato — entidad
+  `DocumentoRequerido`). Prompt al quedar auditada F4 (ADR-001 §5).
+- **ADR-003 candidato**: redundancia de ámbito en el contrato (`ambito_geografico`+
+  region/provincia vs `ambito_territorial_requerido` sin consumir) — limpiar. (La
+  desambiguación NUTS2/NUTS3 se resuelve ya en PROMPT-009, no espera al ADR.)
+- Derivar CCAA (`region`) desde el código NUTS3 provincial — tabla NUTS3→NUTS2;
+  mejora futura, fuera del alcance de PROMPT-009.
 - Adapters privados de ingesta (FEDER, la Caixa, ONCE) + agregador SolucionesONG —
-  tras F2.
-- Proveedor LLM real para la capa IA (hoy ExplicadorStub) — decisión del arquitecto.
+  tras F2 (ya desbloqueado).
+- Proveedor LLM real para la capa IA (hoy `ExplicadorStub`) — decisión del arquitecto.
 - Endurecer el test anti-hardcoding (el canario del ADR pasa por construcción).
-- Esqueleto de la app (fija el comando de servidor local en CLAUDE.md) — tras F1.
+- Re-pasada de verificación adversarial de R1 (22 fuentes, 0 refutadas) — opcional.
+- **R2 2ª pasada** (extracción sistemática Somos Pacientes/FEDER/ASEM/FEGEREC hasta
+  varios cientos) + cruce de personas/cargo solo para la lista corta de piloto +
+  verificación de vigencia de webs/emails antes de un envío real — opcional/cuando
+  toque captación en volumen.
+- Esqueleto de la app (fija el comando de servidor local en CLAUDE.md).
 - Modelo de negocio (las entidades objetivo tienen pocos recursos) — conversación
   de producto, sin prisa técnica.
 - Ajustar la "vara de medir" de ux-reviewer.md cuando exista sistema visual propio.

@@ -2,6 +2,34 @@
 
 ## Semana 2026-07-13/19
 
+- **PROMPT-008 — F2: ingesta de convocatorias vía API BDNS** (Sonnet) —
+  **HECHO 5a52d27, APROBADO (auditoría independiente del arquitecto), 126 tests.
+  F2 CERRADA.** `adapters/ingesta/base.py` (Protocol `FuenteConvocatorias`,
+  Protocol `TransporteHTTP` inyectable, `FiltrosBusqueda` como datos,
+  `TransporteURLLib` stdlib solo para el smoke); `adapters/ingesta/bdns.py`
+  (`FuenteBDNS`: búsqueda paginada + detalle, mapeo determinista tipo/ámbito/
+  región/dinero/plazos/beneficiarios/objeto, degradación limpia — búsqueda falla→
+  corta y devuelve parcial, detalle falla→salta y sigue); `dominio/ingesta_estado.py`
+  (`promocionar_si_completa` EXTRAIDA→VERIFICADA, función de dominio pura con campos
+  mínimos documentados); puerto `obtener_por_url_origen` añadido y cumplido en
+  `memoria.py` + `sqlite.py` (ALTER TABLE idempotente para columnas portal/url_origen
+  + índice); `adapters/ingesta/servicio.py` (`ingestar` con dedupe por
+  portal+url_origen); 6 fixtures JSON sintéticas ("ficticia"/"VILAFICTICIA", forma
+  real de campos) + `scripts/smoke_bdns.py` manual fuera de CI. R1 committeada
+  (xlsx+informe) y `.gitignore` gana `investigacion/asociaciones*`.
+  Dinero: euros→céntimos `int` vía `Decimal(str()).scaleb(2).quantize(HALF_UP)` —
+  jamás float al dominio. Auditoría del arquitecto: leído el código real de todos
+  los ficheros + reproducción en sandbox (sin pytest/PyPI) con shim mínimo: 0 fallos
+  de import en `src`, 99 casos verdes / 0 rojos (71 sin fixture + 28 de
+  persistencia/dedupe sobre ambos adapters), rutas de degradación comprobadas; los 7
+  no reproducidos son `parametrize` de valores de F1/F3, no de F2. Decisiones
+  documentadas del empleado (no bloqueantes): (1) `nivel1` sin mapeo → `publica_local`
+  (más restrictivo); (2) región única `ES*` → siempre `autonomico` (NUTS2/NUTS3 sin
+  desambiguar — candidato ADR); (3) `objeto` = descripcion + descripcionFinalidad;
+  (4) parámetro `tipoBeneficiario` y nombres de campo de búsqueda sin verificar
+  contra Swagger (caído) → los confirma el smoke test del operador. Notas de
+  auditoría vivas en el 06: pendiente humano del smoke test; gap NUTS2/NUTS3 al
+  ADR-003.
 - **PROMPT-007 — F3: guardarraíl determinista + capa IA explicativa** (Sonnet) —
   **HECHO fc04348, APROBADO (auditoría del arquitecto), 101 tests. F3 CERRADA.**
   `elegibilidad.py` (6 reglas puras, no-evaluable ⇒ no elegible, detalle línea a
