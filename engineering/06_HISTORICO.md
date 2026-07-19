@@ -2,6 +2,24 @@
 
 ## Semana 2026-07-13/19
 
+- **PROMPT-009 — F2-fix: ámbito provincial (NUTS3) en el adapter BDNS** (Sonnet) —
+  **HECHO 6a50af2, APROBADO (auditoría independiente del arquitecto, DESDE GIT), 133
+  tests. F2-fix CERRADA.** Bug destapado por el smoke test del operador contra la API
+  viva: los códigos NUTS3 (provincia, "ES"+3 dígitos: Bizkaia, Pontevedra, Córdoba) se
+  etiquetaban `ambito_geografico=AUTONOMICO` con la provincia en `region`.
+  `_ambito_y_region_desde_regiones` pasa a devolver terna (ambito, region, provincia) y
+  deriva por nº de dígitos tras "ES": 2 (NUTS2)→AUTONOMICO/region, 3 (NUTS3)→PROVINCIAL/
+  provincia, resto (no-ES, no numérico, otro nº de dígitos, cero/multi región)→NACIONAL
+  conservador; `_mapear_convocatoria` rellena ambos campos. SIN tocar contrato
+  (PROVINCIAL y Convocatoria.provincia ya existían) ni esquema. Fixture detalle_100003
+  ahora "ES613 - Córdoba" (nivel1 LOCAL) → test espera PROVINCIAL/provincia="Córdoba"/
+  region=None, conservando la prueba de ortogonalidad tipo↔ámbito. +7 tests unitarios
+  directos sobre la función pura (todas las ramas) en vez de fixtures de pipeline —
+  decisión del empleado, aprobada por el arquitecto (más aislado). Derivar CCAA desde
+  NUTS3 (tabla NUTS3→NUTS2) fuera de alcance, anotado en docstring. LECCIÓN VIVA: el
+  mount sandbox↔host mintió con el fichero recién editado (devolvió la versión antigua);
+  la auditoría se hizo con `git show 6a50af2:...` — inmutable. Reafirma el quirk: para
+  auditar tras un commit reciente, `git show`, nunca el mount.
 - **PROMPT-008 — F2: ingesta de convocatorias vía API BDNS** (Sonnet) —
   **HECHO 5a52d27, APROBADO (auditoría independiente del arquitecto), 126 tests.
   F2 CERRADA.** `adapters/ingesta/base.py` (Protocol `FuenteConvocatorias`,
