@@ -16,6 +16,13 @@ class RepositorioEntidades(Protocol):
 
     def obtener_entidad_por_email(self, email: str) -> Entidad | None: ...
 
+    def listar_entidades(self) -> list[Entidad]:
+        """Todas las entidades del tenant único de plataforma (multi-tenant a
+        nivel de entidad, no de instalación) — PROMPT-018: el runner de
+        ingesta necesita evaluar cada convocatoria nueva contra TODAS las
+        entidades registradas."""
+        ...
+
 
 @runtime_checkable
 class RepositorioConvocatorias(Protocol):

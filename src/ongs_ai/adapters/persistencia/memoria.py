@@ -36,6 +36,9 @@ class AlmacenMemoria:
             return None
         return coincidencias[0]
 
+    def listar_entidades(self) -> list[Entidad]:
+        return list(self._entidades.values())
+
     # Convocatorias (no son dato de tenant, ADR §4.2) -----------------
     def guardar_convocatoria(self, convocatoria: Convocatoria) -> None:
         self._convocatorias[convocatoria.convocatoria_id] = convocatoria

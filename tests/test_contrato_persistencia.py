@@ -215,6 +215,23 @@ def test_obtener_entidad_por_email_inexistente_devuelve_none(almacen):
     assert almacen.obtener_entidad_por_email("no-existe@example.org") is None
 
 
+def test_listar_entidades_sin_entidades_devuelve_lista_vacia(almacen):
+    assert almacen.listar_entidades() == []
+
+
+def test_listar_entidades_devuelve_todas_las_guardadas(almacen):
+    entidad_a = _entidad("ent-listar-a")
+    entidad_b = dataclasses.replace(
+        _entidad("ent-listar-b"), contacto=Contacto(email="otra@example.org")
+    )
+    almacen.guardar_entidad(entidad_a)
+    almacen.guardar_entidad(entidad_b)
+
+    listadas = almacen.listar_entidades()
+
+    assert {e.entidad_id for e in listadas} == {"ent-listar-a", "ent-listar-b"}
+
+
 def test_obtener_entidad_por_email_duplicado_devuelve_none_y_cuenta(almacen):
     """Comportamiento conservador (ADR-005 §5): email duplicado entre
     entidades = login ambiguo, nunca elige una al azar."""

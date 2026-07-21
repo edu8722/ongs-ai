@@ -323,6 +323,18 @@ class AlmacenSQLite:
             "entidad", entidad_id, _entidad_desde_dict, json.loads(datos_json)
         )
 
+    def listar_entidades(self) -> list[Entidad]:
+        with self._lock:
+            filas = self._conn.execute("SELECT entidad_id, datos_json FROM entidades").fetchall()
+        entidades = []
+        for entidad_id, datos_json in filas:
+            entidad = self._decodificar(
+                "entidad", entidad_id, _entidad_desde_dict, json.loads(datos_json)
+            )
+            if entidad is not None:
+                entidades.append(entidad)
+        return entidades
+
     # Convocatorias ----------------------------------------------------
     def guardar_convocatoria(self, convocatoria: Convocatoria) -> None:
         payload = json.dumps(
