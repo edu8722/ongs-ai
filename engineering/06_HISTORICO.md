@@ -7,6 +7,19 @@
 
 ## Semana 2026-07-20/26
 
+- **PROMPT-024b — consola ignora descartadas (rendimiento + señal)** (Sonnet) —
+  **HECHO 6528a29, APROBADO, 372 tests.** (El mensaje del commit dice
+  "PROMPT-025" por error de etiqueta de la sesión; corresponde a este 024b.)
+  convocatorias_utiles(almacen) excluye DESCARTADA_POR_DOMINIO (~1.544 de
+  ~1.561 tras la pasada del 024) del dashboard y el cruce; vista de
+  convocatorias con descartadas ocultas por defecto + checkbox auditable con
+  motivo de exclusión + contador de ocultas. Bug incidental hallado al
+  verificar contra la base real: convocatorias sin fecha alguna (frecuentes
+  entre descartadas) reventaban la vista con date-vs-None → fallback
+  conservador date.max con test de regresión. Medidas reales (~1.561 conv ×
+  513 perfiles): dashboard 29,3s→0,26s; cruce 0,43s→0,08s; convocatorias
+  500→0,06s. Sin tocar scoring, matching, contrato ni ingesta.
+
 - **PROMPT-024 — cobertura de ingesta: búsquedas dirigidas** (Sonnet) — **HECHO
   3947e11, APROBADO, 368 tests.** Origen: segundo hallazgo del operador (PDF
   histórico de concesiones de Aniridia 2022-2024) — la ingesta solo paginaba lo

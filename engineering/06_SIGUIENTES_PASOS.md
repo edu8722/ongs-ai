@@ -70,6 +70,16 @@ siguiente acción según este documento.
 
 ## ESTADO VIVO
 
+- **2026-07-22 — PROMPT-024b CERRADO: APROBADO, HECHO 6528a29, 372 tests,
+  pushed.** convocatorias_utiles excluye descartadas en dashboard/cruce;
+  /consola/convocatorias las oculta por defecto con checkbox auditable (motivo
+  de exclusión visible) y aviso "N descartadas ocultas". Bug incidental cazado
+  contra la base real y arreglado con regresión: convocatorias sin ninguna
+  fecha reventaban la vista (date vs None). MEDIDO con la base real (~1.561 ×
+  513): dashboard 29,3s→0,26s · cruce 0,43s→0,08s · convocatorias 500→0,06s.
+  NOTA DE REGISTRO: el mensaje del commit dice "PROMPT-025" por error de
+  etiqueta de la sesión — corresponde al 024b; el 025 de la cola sigue siendo
+  el ADR-007. **SIGUIENTE: pegar PROMPT-025 (ADR-007, OPUS — solo diseño).**
 - **2026-07-22 — PROMPT-024 CERRADO: APROBADO, HECHO 3947e11, 368 tests, pushed.
   LA COBERTURA EXISTE.** Auditado: batería versionada de 11 términos con
   justificación por término (config de producto, no dato de ONG — documentado),
@@ -161,50 +171,6 @@ siguiente acción según este documento.
 ## COLA — lo que de verdad queda
 
 ### ➤ PROMPTS PENDIENTES — todos aquí, listos para copiar (se vacían al cerrarse)
-
-#### PROMPT-024b — Las vistas de consola ignoran las descartadas (rendimiento + señal) · MODELO: Sonnet · ORDEN: 1º, PEQUEÑO — pegar ANTES del ADR si vas a usar la consola
-
-```
-POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda,
-elige la opción más conservadora/reversible y DOCUMENTA la decisión; lo
-literal del prompt y anota lo excluido; jamás inventes datos. Reglas de
-oro de CLAUDE.md por encima de todo. Grep antes de leer ficheros grandes.
-La pizarra (engineering/06_*) la mantiene SOLO el arquitecto: no cierres
-items, no te declares APROBADO — incluye en tu commit los cambios de
-engineering/06_* del working tree tal cual.
-
-CONTEXTO: tras PROMPT-024 la base tiene ~1.550 convocatorias, la mayoría
-DESCARTADA_POR_DOMINIO (cerradas en origen / concesión directa,
-persistidas a propósito para el dedupe). Las vistas de consola evalúan
-TODAS contra ~512 perfiles en cada carga (cruce, dashboard) → lentitud
-severa y listados enterrados en descartadas que por definición no son
-oportunidades.
-
-A1. Nueva función en el módulo de soporte de consola (o servicio si
-   encaja mejor): convocatorias_utiles(almacen) = todas MENOS las
-   DESCARTADA_POR_DOMINIO. El dashboard (métricas, importe agregado,
-   "oportunidades más afines") y /consola/cruce evalúan SOLO esas.
-   El mapa no cambia (va de prospectos).
-A2. /consola/convocatorias: filtro de estado nuevo con defecto
-   "no descartadas"; opción explícita "ver también descartadas" (con su
-   motivo de exclusiones visible — el dato ya existe) para auditar por
-   qué algo se descartó. La cuenta del dashboard dice cuántas descartadas
-   hay ("N descartadas ocultas — verlas en Convocatorias").
-A3. Tests: cruce y dashboard con una base que mezcla verificadas y
-   descartadas — las descartadas NO aparecen ni se evalúan (asértalo con
-   un almacén stub que cuente llamadas o con el contenido renderizado);
-   filtro de convocatorias en sus tres variantes.
-A4. NO toques el scoring, el matching de fondo (detectar_y_proponer ya
-   exige VERIFICADA), el contrato ni la ingesta. Es un cambio de LECTURA
-   en las vistas.
-
-C. python -m pytest -q VERDE con el nº REAL de tests.
-
-Ritual de cierre: commit ÚNICO con nº real de tests, git status antes del
-add (JAMÁS investigacion/), push. Tras el commit: abre /consola y
-/consola/cruce con la base real (~1.550) y reporta el tiempo de carga
-percibido antes/después.
-```
 
 #### PROMPT-025 — ADR-007: vigilancia de recurrentes, historial por NIF y convocatorias esperadas · MODELO: Opus · ORDEN: 2º (SOLO tras cerrar PROMPT-024; nada en paralelo)
 
@@ -354,13 +320,9 @@ el dashboard — verificación humana del ciclo completo sin terminal.
 
 ### Bandeja del OPERADOR
 
-- **Orden de pegado actualizado: 024b (pequeño, consola usable con la base
-  grande) → 025/ADR-007 (OPUS, diseño) → 026/F-consola.3.** De uno en uno,
-  copiando del 06 ACTUAL, esperando mi auditoría entre uno y otro.
-- Aviso mientras no cierre 024b: /consola y /consola/cruce pueden tardar
-  MUCHO con las ~1.550 convocatorias — no es un cuelgue; usa los filtros de
-  /consola/convocatorias, que es la vista que mejor aguanta.
-- Sigue apuntando lo raro que veas — tus hallazgos están dirigiendo la cola.
+- **Pegar PROMPT-025 (ADR-007) — sesión OPUS, solo diseño, cero código.**
+  Copia del 06 ACTUAL. Después de mi auditoría: PROMPT-026 (F-consola.3).
+- La consola ya vuela con la base grande — úsala y sigue apuntando lo raro.
 - Commit de docs cuando quieras:
   `git add engineering/ && git commit -m "Pizarra (docs)" && git push`
 - Decisión pendiente (sin prisa): teléfono público de ABAIMAR en
