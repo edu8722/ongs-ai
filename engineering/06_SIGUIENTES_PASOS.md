@@ -70,6 +70,24 @@ siguiente acción según este documento.
 
 ## ESTADO VIVO
 
+- **2026-07-22 — PROMPT-026 / F-consola.3 CERRADO: APROBADO, HECHO 7fb9d05, 389
+  tests, pushed. EL OPERADOR YA NO NECESITA LA TERMINAL.** Auditado: filtros GET
+  en todas las vistas (entidades tipo/CCAA, cruce estado/score-mín/texto, mapa
+  CCAA/texto, dashboard CCAA) con "limpiar filtros"; orquestación movida a
+  servicios/pasada_ingesta.py (script = CLI fino); acciones web con
+  RegistroEjecucion (threading.Lock, hilo/reloj inyectables, stub síncrono en
+  CI), candado testeado, rutas con solo_loopback+operador. Verificación en
+  vivo de la sesión: click en "Actualizar convocatorias" → "En curso" con
+  botones deshabilitados → 13 min de pasada real (BDNS + CLI Claude) →
+  resumen honesto en dashboard (1 nueva, 1.545 dedupe, 1.400 no-abiertas,
+  657 concesión directa, 13 llamadas IA) → botones reactivados.
+  NOTA OPERATIVA de la sesión: uvicorn VIEJOS colgando en puertos 8000-8003 —
+  el del 8001 puede servir código antiguo; matar y relanzar (bandeja).
+  NOTA DEL ENTORNO del arquitecto: su sandbox recicló estado y su copia local
+  de la pizarra retrocedió; recuperada desde el disco del operador (git/disco
+  = verdad, confirmado una vez más).
+  **COLA VACÍA. SIGUIENTE: F-proactivo.1 — se redacta EN CUANTO el operador
+  conteste los 6 defaults del §8 del ADR-007 (o diga "defaults OK").**
 - **2026-07-22 — PROMPT-025 / ADR-007 CERRADO: APROBADO, HECHO 077a8c4 (372
   tests, sin código).** Leído íntegro (568 líneas) y auditado contra método y
   contrato: verificación en vivo ejemplar (nifCif SÍ filtra: 76/0/28M con
@@ -195,99 +213,27 @@ siguiente acción según este documento.
 
 ### ➤ PROMPTS PENDIENTES — todos aquí, listos para copiar (se vacían al cerrarse)
 
-#### PROMPT-026 — F-consola.3: filtros en todas las pantallas + acciones desde la web · MODELO: Sonnet · ORDEN: 3º (tras cerrar el ADR-007; nada en paralelo)
-
-```
-POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda,
-elige la opción más conservadora/reversible y DOCUMENTA la decisión; ante
-ambigüedad de alcance, lo literal del prompt y anota lo excluido; jamás
-inventes datos ni mediciones. Reglas de oro de CLAUDE.md por encima de
-todo. Antes de tocar un fichero grande, Grep al símbolo y lee el rango.
-La pizarra (engineering/06_*) la mantiene SOLO el arquitecto: no cierres
-items, no te declares APROBADO — incluye en tu commit los cambios de
-engineering/06_* que ya estén en el working tree, tal cual.
-
-TAREA (petición literal del operador): "en todas las pantallas debería
-existir filtros y desde la propia web debería poderse invocar a
-recalcular o reejecutar comandos para actualizar las convocatorias y
-hacer la revisión de a qué convocatorias se puede presentar cada
-asociación". Dos bloques:
-
-A. FILTROS EN TODAS LAS VISTAS DE CONSOLA (GET puro, server-side, mismo
-   patrón que /consola/convocatorias; SIN JavaScript nuevo):
-A1. /consola/entidades: además del texto actual, filtro por CCAA y por
-   tipo (captadas / candidatas / todas).
-A2. /consola/cruce: filtro por estado del cruce (elegible / no evaluable /
-   no elegible / todos), score mínimo (número entero 0-100) y texto sobre
-   el objeto de la convocatoria.
-A3. /consola/mapa: filtro por CCAA y texto sobre nombre.
-A4. /consola (dashboard): las "oportunidades más afines" ganan filtro por
-   CCAA del perfil. Formularios con method="get", valores actuales
-   preservados en los inputs, y enlace "limpiar filtros" en cada vista.
-A5. Tests HTTP por vista: con filtro que acierta, filtro que vacía (y
-   mensaje de vacío correcto), y combinación de filtros.
-
-B. ACCIONES DEL OPERADOR DESDE LA WEB (sin terminal):
-B1. Prepara la reutilización: mueve la función de orquestación de la
-   pasada de ingesta de scripts/ejecutar_ingesta.py a un módulo
-   importable del paquete (p. ej. src/ongs_ai/servicios/pasada_ingesta.py)
-   — MOVIMIENTO mecánico con sus tests detrás; el script queda como CLI
-   fino que importa de ahí (mismo patrón que preparar_demo). Nada de
-   duplicar lógica.
-B2. Registro de ejecución en app.state (dataclass en memoria, v1 local
-   monopuesto): estado (inactivo / en curso desde T / terminado en T con
-   resumen / fallido con motivo degradado), y CANDADO: si hay una pasada
-   en curso, un segundo disparo responde "ya hay una pasada en curso" sin
-   lanzar nada (threading.Lock, no cola de trabajos — anti-sobre-
-   ingeniería, documenta la decisión).
-B3. POST /consola/acciones/actualizar-convocatorias: lanza EN HILO DE
-   FONDO la pasada completa (batería del 024 + filtros del 023 + matching
-   y propuestas, lo mismo que el CLI). POST
-   /consola/acciones/recalcular-revisiones: solo la fase de matching/
-   propuestas sobre lo ya ingerido (sin red). Ambas rutas con las MISMAS
-   dependencias de consola (solo_loopback + operador_actual).
-B4. UI en el dashboard: sección "Estado de la plataforma" con los dos
-   botones, el estado actual y el resumen de la última ejecución
-   (métricas del runner tal cual, incluidas descartadas del 023 y
-   fallos IA). Mientras hay pasada en curso los botones se deshabilitan
-   (atributo disabled según estado; el refresco es recargar la página —
-   documenta que v1 no lleva polling).
-B5. EJECUTOR INYECTABLE: las rutas reciben el ejecutor de pasadas vía
-   app.state (factory por entorno) — en tests SIEMPRE un stub síncrono
-   (sin hilos ni red ni CLI: el hilo real solo existe en producción).
-   Tests: candado (segundo POST con pasada en curso), estado renderizado
-   en el dashboard, acción de recalcular llama al stub correcto, y las
-   rutas exigen loopback+operador (404/redirect como el resto).
-B6. La ingesta desde la web usa la suscripción Claude del operador igual
-   que el CLI (freno de plan intacto); si el CLI no está disponible en el
-   entorno del servidor, degradación limpia ya existente — verifica que
-   el resumen la refleja, no la ocultes.
-
-C. python -m pytest -q VERDE con el nº REAL de tests. NO toques contrato,
-   máquina de estados, scoring ni la ingesta en sí (solo la mueves).
-
-Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
-git status antes del add (JAMÁS investigacion/), git push. Tras el
-commit: arranca el servidor real, dispara "Actualizar convocatorias"
-desde el navegador, espera el final y pega el estado/resumen que muestra
-el dashboard — verificación humana del ciclo completo sin terminal.
-```
+(SIN PROMPTS EN COLA — F-proactivo.1 se redacta al recibir las respuestas del
+§8 del ADR-007; después F-proactivo.2, vista de panel del tenant.)
 
 ### Bandeja del OPERADOR
 
-- **Pegar PROMPT-026 (F-consola.3, Sonnet) — COPIA la versión ACTUAL del 06.**
-- **Responder (o aceptar en bloque) los 6 defaults del §8 del ADR-007:**
-  (1) historial: últimos 5 años · (2) 1 edición basta para esperada BAJA ·
-  (3) aviso de "ventana próxima" solo en panel · (4) NO_APARECIDA a los 2
-  meses de pasar la ventana · (5) nominativas visibles pero sin "preséntate" ·
-  (6) re-derivación tras cada ingesta. Un "defaults OK" me vale; cualquier
-  matiz, dímelo y lo llevo al prompt de F-proactivo.1.
+- **Contéstame los 6 defaults del §8 del ADR-007 (un "defaults OK" vale):**
+  (1) historial 5 años · (2) 1 edición basta (confianza BAJA) · (3) "ventana
+  próxima" solo panel · (4) NO_APARECIDA a los 2 meses · (5) nominativas
+  visibles sin "preséntate" · (6) re-derivación tras cada ingesta.
+  En cuanto contestes, encolo F-proactivo.1 completo.
+- **Higiene de puertos (hallazgo de la sesión 026):** uvicorn viejos en los
+  puertos 8000-8003 — el del 8001 puede estar sirviendo código ANTIGUO.
+  Ciérralos (Administrador de tareas → procesos python, o reinicia el equipo)
+  y relanza el del 8001 con las variables de DEMO.md paso 1. Desde ya,
+  actualizar convocatorias = BOTÓN del dashboard, sin terminal.
 - Commit de docs cuando quieras:
   `git add engineering/ && git commit -m "Pizarra (docs)" && git push`
 - Decisión pendiente (sin prisa): teléfono público de ABAIMAR en
-  scripts/preparar_demo.py (repo privado). ¿Lo dejamos o placeholder?
-- En espera: retirar demo-conv-1/2/3, entidad piloto, SMTP real,
-  programación diaria, censo FEDER.
+  scripts/preparar_demo.py. ¿Lo dejamos o placeholder?
+- En espera: retirar demo-conv-1/2/3, entidad piloto, SMTP real, programación
+  diaria (¿o basta botón + Task Scheduler?), censo FEDER.
 
 ### Backlog
 

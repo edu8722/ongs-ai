@@ -7,6 +7,19 @@
 
 ## Semana 2026-07-20/26
 
+- **PROMPT-026 — F-consola.3: filtros en todas las vistas + acciones web**
+  (Sonnet) — **HECHO 7fb9d05, APROBADO, 389 tests.** Petición literal del
+  operador. Filtros GET server-side en entidades (tipo/CCAA), cruce
+  (estado/score mínimo/texto), mapa (CCAA/texto) y dashboard (CCAA), con
+  "limpiar filtros"; orquestación de pasada movida a
+  servicios/pasada_ingesta.py (script como CLI fino); RegistroEjecucion con
+  threading.Lock + lanzador de hilo y reloj inyectables (stub síncrono en CI),
+  candado anti-doble-pasada testeado, POST /consola/acciones/* con
+  solo_loopback+operador. Verificación en vivo: pasada completa de 13 min
+  disparada desde el navegador contra la base real, resumen honesto en el
+  dashboard y botones reactivados. Hallazgo operativo: uvicorn viejos en
+  8000-8003.
+
 - **PROMPT-025 — ADR-007: recurrentes esperadas** (Opus) — **HECHO 077a8c4,
   APROBADO (auditoría íntegra del arquitecto), 372 tests, sin código.** Diseño
   del corazón proactivo a partir de la petición literal del operador y su PDF
