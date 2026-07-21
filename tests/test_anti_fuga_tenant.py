@@ -4,10 +4,15 @@ Dos Entidades, un Match de cada una: una consulta con `entidad_id` de la
 primera nunca debe devolver Match, asientos ni datos económicos de la segunda.
 Corre sobre AMBOS adapters (memoria, sqlite ':memory:') — el aislamiento es una
 garantía del puerto, no de un adapter concreto.
+
+Amplía el aislamiento a nivel HTTP (ADR-005 §2.3/§6, F-web.1): entidad A
+logueada con matches sembrados de A y B, `/panel` de A no debe mostrar nada de
+B, y ninguna ruta acepta un `entidad_id` ajeno como parámetro.
 """
 from datetime import date, datetime, timezone
 
 import pytest
+from fastapi.testclient import TestClient
 
 from ongs_ai.adapters.persistencia.memoria import AlmacenMemoria
 from ongs_ai.adapters.persistencia.sqlite import AlmacenSQLite
@@ -22,7 +27,9 @@ from ongs_ai.dominio.entidades import (
     RequisitoFormal,
     TipoActividad,
 )
-from ongs_ai.dominio.matching_estado import ActorAsiento, crear_match
+from ongs_ai.dominio.matching_estado import ActorAsiento, EstadoMatch, crear_match, transicionar
+from ongs_ai.servicios.autenticacion import EnviadorEnlaceAccesoStub
+from ongs_ai.web.app import crear_app
 
 T0 = datetime(2026, 7, 18, tzinfo=timezone.utc)
 
@@ -97,3 +104,51 @@ def test_consulta_por_entidad_a_no_expone_datos_economicos_de_entidad_b(almacen)
     assert obtenida is not None
     assert obtenida.datos_economicos_ejercicio_anterior.ingresos_centimos == 111_111
     assert obtenida.datos_economicos_ejercicio_anterior.ingresos_centimos != 222_222
+
+
+# --- Anti-fuga a nivel HTTP (ADR-005 §2.3/§6, F-web.1) ---------------------
+
+
+def _match_propuesta(match_id: str, entidad_id: str, convocatoria_id: str):
+    match = crear_match(
+        match_id=match_id, entidad_id=entidad_id, convocatoria_id=convocatoria_id,
+        transicion_id=f"t0-{match_id}", motivo="detectada", actor=ActorAsiento.SISTEMA,
+        timestamp=T0,
+    )
+    return transicionar(
+        match, a_estado=EstadoMatch.PROPUESTA, transicion_id=f"t1-{match_id}",
+        motivo="propuesta", actor=ActorAsiento.SISTEMA, timestamp=T0,
+    )
+
+
+def test_http_entidad_a_logueada_no_ve_matches_de_b_ni_via_query_param():
+    entidad_a = _entidad("ent-http-A", ingresos_centimos=111_111)
+    entidad_b = _entidad("ent-http-B", ingresos_centimos=222_222)
+    almacen = AlmacenMemoria()
+    almacen.guardar_entidad(entidad_a)
+    almacen.guardar_entidad(entidad_b)
+    almacen.guardar_match(_match_propuesta("match-http-A", entidad_a.entidad_id, "conv-http-1"))
+    almacen.guardar_match(_match_propuesta("match-http-B", entidad_b.entidad_id, "conv-http-1"))
+
+    enviador = EnviadorEnlaceAccesoStub()
+    app = crear_app(
+        secret_key="clave-de-test-nunca-en-produccion",
+        almacen=almacen,
+        enviador_enlace=enviador,
+        generador_token=lambda: "token-http-A",
+        reloj=lambda: T0,
+    )
+    client = TestClient(app)
+    client.post("/login", data={"email": entidad_a.contacto.email})
+    token = enviador.enlaces[0].token
+    client.get(f"/login/confirmar?token={token}")
+
+    # Ninguna ruta acepta un entidad_id ajeno como parámetro: un query param
+    # `entidad_id` debe ser ignorado por completo, el tenant sale SOLO de la
+    # sesión (ADR-005 §2.3).
+    resp = client.get("/panel", params={"entidad_id": entidad_b.entidad_id})
+
+    assert resp.status_code == 200
+    assert "match-http-B" not in resp.text
+    assert entidad_b.entidad_id not in resp.text
+    assert "match-http-A" not in resp.text  # tampoco se exponen ids internos propios

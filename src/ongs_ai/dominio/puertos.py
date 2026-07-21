@@ -1,6 +1,7 @@
 """Puertos de persistencia — el dominio depende de estos Protocol, no de un adapter concreto."""
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Protocol, runtime_checkable
 
 from ongs_ai.dominio.entidades import Convocatoria, Entidad
@@ -12,6 +13,8 @@ class RepositorioEntidades(Protocol):
     def guardar_entidad(self, entidad: Entidad) -> None: ...
 
     def obtener_entidad(self, entidad_id: str) -> Entidad | None: ...
+
+    def obtener_entidad_por_email(self, email: str) -> Entidad | None: ...
 
 
 @runtime_checkable
@@ -28,3 +31,16 @@ class RepositorioMatches(Protocol):
     def guardar_match(self, match: Match) -> None: ...
 
     def listar_matches_por_entidad(self, entidad_id: str) -> list[Match]: ...
+
+
+@runtime_checkable
+class RepositorioTokensAcceso(Protocol):
+    """Infraestructura de auth (ADR-005 §5) — NO forma parte del contrato congelado."""
+
+    def crear_token(self, entidad_id: str, token_hash: str, expira_en: datetime) -> None: ...
+
+    def consumir_token(self, token_hash: str, ahora: datetime) -> str | None:
+        """Atómico: si existe, no expiró y no se ha usado, lo marca usado y
+        devuelve `entidad_id`; en cualquier otro caso devuelve None (un solo
+        uso posible por token)."""
+        ...

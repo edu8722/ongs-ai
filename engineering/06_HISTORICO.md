@@ -2,6 +2,22 @@
 
 ## Semana 2026-07-20/26
 
+- **PROMPT-013 — ADR-005: esqueleto web + auth multi-tenant** (Opus) — **HECHO
+  a4c80ab, APROBADO (auditoría del arquitecto, 447 líneas leídas), 184 tests (sin
+  código).** FastAPI+uvicorn+Jinja2 SSR sin SPA; magic link sin contraseñas
+  (tokens hasheados, un solo uso, consumo atómico, anti-enumeración); sesión en
+  cookie firmada con SOLO entidad_id — `entidad_actual(request)` como ÚNICA fuente
+  de tenant, ninguna ruta acepta entidad_id del cliente (aislamiento por
+  construcción); autoescape como control de seguridad ante texto libre de IA;
+  primeras dependencias runtime justificadas y acotadas; puertos aditivos
+  (obtener_entidad_por_email + RepositorioTokensAcceso) sin tocar contrato.
+  Decisiones del operador sobre §7 (2026-07-21): sesión 30 DÍAS (no 12h — usuario
+  objetivo sin personal técnico), TTL del enlace 1 HORA (no 15 min), hosting/TLS
+  se decide al captar piloto (desarrollo en localhost; HTTPS obligatorio antes de
+  acceso real); resto de defaults aceptados (SECRET_KEY por entorno, recuperación
+  manual, rutas en español). F-web.1 promovido a la cola como PROMPT-014 con esos
+  parámetros incorporados.
+
 - **PROMPT-012 — Remates F4.2 + scraper FEDER** (Sonnet) — **HECHO 6457682, APROBADO
   (auditoría del arquitecto), 184 tests.** Cubo `aceptadas` añadido al panel (orden
   espejo de la máquina de estados); gitignore corregido a

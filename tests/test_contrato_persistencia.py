@@ -1,7 +1,8 @@
 """Tests de CONTRATO — el puerto (`puertos.py`) promete objetos de dominio tipados y
 AMBOS adapters (memoria, sqlite) deben cumplirlo igual (corrección post-auditoría F1).
 """
-from datetime import date, datetime, timezone
+import dataclasses
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
@@ -26,7 +27,12 @@ from ongs_ai.dominio.entidades import (
     TipoFuente,
 )
 from ongs_ai.dominio.matching_estado import ActorAsiento, EstadoMatch, crear_match, transicionar
-from ongs_ai.dominio.puertos import RepositorioConvocatorias, RepositorioEntidades, RepositorioMatches
+from ongs_ai.dominio.puertos import (
+    RepositorioConvocatorias,
+    RepositorioEntidades,
+    RepositorioMatches,
+    RepositorioTokensAcceso,
+)
 
 T0 = datetime(2026, 7, 18, tzinfo=timezone.utc)
 
@@ -190,3 +196,57 @@ def test_almacen_satisface_los_protocolos_de_puertos(almacen):
     assert isinstance(almacen, RepositorioEntidades)
     assert isinstance(almacen, RepositorioConvocatorias)
     assert isinstance(almacen, RepositorioMatches)
+    assert isinstance(almacen, RepositorioTokensAcceso)
+
+
+# --- obtener_entidad_por_email (ADR-005 §5) -------------------------------
+
+
+def test_obtener_entidad_por_email_existente(almacen):
+    entidad = _entidad("ent-email-1")
+    almacen.guardar_entidad(entidad)
+
+    obtenida = almacen.obtener_entidad_por_email("contrato@example.org")
+
+    assert obtenida == entidad
+
+
+def test_obtener_entidad_por_email_inexistente_devuelve_none(almacen):
+    assert almacen.obtener_entidad_por_email("no-existe@example.org") is None
+
+
+def test_obtener_entidad_por_email_duplicado_devuelve_none_y_cuenta(almacen):
+    """Comportamiento conservador (ADR-005 §5): email duplicado entre
+    entidades = login ambiguo, nunca elige una al azar."""
+    entidad_a = dataclasses.replace(_entidad("ent-dup-a"))
+    entidad_b = dataclasses.replace(
+        _entidad("ent-dup-b"), contacto=Contacto(email="contrato@example.org")
+    )
+    almacen.guardar_entidad(entidad_a)
+    almacen.guardar_entidad(entidad_b)
+
+    assert almacen.obtener_entidad_por_email("contrato@example.org") is None
+    assert almacen.entidades_duplicadas_por_email == 1
+
+
+# --- RepositorioTokensAcceso (ADR-005 §5) ---------------------------------
+
+
+def test_token_valido_se_consume_una_vez_y_la_segunda_falla(almacen):
+    almacen.crear_token("ent-token-1", "hash-valido", T0 + timedelta(hours=1))
+
+    primera = almacen.consumir_token("hash-valido", T0)
+    segunda = almacen.consumir_token("hash-valido", T0)
+
+    assert primera == "ent-token-1"
+    assert segunda is None
+
+
+def test_token_expirado_falla(almacen):
+    almacen.crear_token("ent-token-2", "hash-caducado", T0 - timedelta(minutes=1))
+
+    assert almacen.consumir_token("hash-caducado", T0) is None
+
+
+def test_token_inexistente_falla(almacen):
+    assert almacen.consumir_token("hash-que-no-existe", T0) is None

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}ONGs-AI{% endblock %}</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      max-width: 780px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      color: #1a1a1a;
+      line-height: 1.5;
+    }
+    h1, h2 { color: #14532d; }
+    section.cubo { margin-bottom: 2rem; }
+    div.match {
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.5rem;
+    }
+    div.match .motivo { color: #7a1f1f; font-size: 0.9rem; margin-top: 0.4rem; }
+    form.logout { margin: 1rem 0; }
+    p.mensaje {
+      background: #eef7ee;
+      border: 1px solid #bcd9bc;
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+    }
+    input, button {
+      font: inherit;
+      padding: 0.4rem 0.6rem;
+    }
+  </style>
+</head>
+<body>
+  {% block contenido %}{% endblock %}
+</body>
+</html>

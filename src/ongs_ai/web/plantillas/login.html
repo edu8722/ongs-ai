@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block titulo %}Acceso — ONGs-AI{% endblock %}
+{% block contenido %}
+<h1>Acceso a tu panel</h1>
+{% if mensaje %}
+  <p class="mensaje">{{ mensaje }}</p>
+{% else %}
+  <p>Introduce el email de contacto de tu entidad y te enviaremos un enlace de acceso.</p>
+  <form method="post" action="/login">
+    <label for="email">Email</label><br>
+    <input type="email" id="email" name="email" required>
+    <button type="submit">Enviar enlace</button>
+  </form>
+{% endif %}
+{% endblock %}

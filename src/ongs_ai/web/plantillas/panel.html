@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block titulo %}Tu panel — ONGs-AI{% endblock %}
+{% block contenido %}
+<h1>Panel de {{ entidad.nombre_legal }}</h1>
+<form class="logout" method="post" action="/logout">
+  <button type="submit">Cerrar sesión</button>
+</form>
+
+{% macro lista_matches(titulo, matches, mostrar_motivo=False) %}
+<section class="cubo">
+  <h2>{{ titulo }} ({{ matches|length }})</h2>
+  {% if matches %}
+    {% for match in matches %}
+      {% set conv = convocatorias.get(match.convocatoria_id) %}
+      <div class="match">
+        {% if conv %}
+          <strong>{{ conv.objeto }}</strong><br>
+          Portal: {{ conv.fuente.portal }}<br>
+          Fecha de cierre:
+          {{ conv.plazos.fecha_cierre.isoformat() if conv.plazos.fecha_cierre else "no especificada" }}
+          {% if conv.cuantias.importe_maximo_centimos %}
+            <br>Cuantía máxima: {{ conv.cuantias.importe_maximo_centimos | euros }}
+          {% endif %}
+        {% else %}
+          <em>Convocatoria no disponible.</em>
+        {% endif %}
+        {% if match.explicacion_ia %}
+          <div>{{ match.explicacion_ia }}</div>
+        {% endif %}
+        {% if mostrar_motivo and match.resultado_elegibilidad_dura %}
+          <div class="motivo">Motivo: {{ match.resultado_elegibilidad_dura.detalle }}</div>
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% else %}
+    <p>Nada por aquí de momento.</p>
+  {% endif %}
+</section>
+{% endmacro %}
+
+{{ lista_matches("Propuestas pendientes", resumen.propuestas_pendientes) }}
+{{ lista_matches("Aceptadas", resumen.aceptadas) }}
+{{ lista_matches("En preparación", resumen.en_preparacion) }}
+{{ lista_matches("Presentadas", resumen.presentadas) }}
+{{ lista_matches("Descartadas", resumen.descartadas) }}
+{{ lista_matches("Detectadas (no elegibles)", resumen.detectadas_no_elegibles, mostrar_motivo=True) }}
+{% endblock %}

@@ -209,6 +209,7 @@ class AlmacenSQLite:
         self._conn.execute("PRAGMA foreign_keys = ON")
         self._migrar()
         self.registros_omitidos_por_corrupcion = 0
+        self.entidades_duplicadas_por_email = 0
 
     def _migrar(self) -> None:
         cur = self._conn.cursor()
@@ -219,6 +220,18 @@ class AlmacenSQLite:
         cur.execute(
             "CREATE TABLE IF NOT EXISTS entidades ("
             "entidad_id TEXT PRIMARY KEY, datos_json TEXT NOT NULL)"
+        )
+        _migrar_columna_si_falta(cur, "entidades", "email", "TEXT")
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS ix_entidades_email ON entidades(email)"
+        )
+        cur.execute(
+            "CREATE TABLE IF NOT EXISTS tokens_acceso ("
+            "token_hash TEXT PRIMARY KEY, entidad_id TEXT NOT NULL, "
+            "expira_en TEXT NOT NULL, usado_en TEXT NULL)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS ix_tokens_acceso_entidad_id ON tokens_acceso(entidad_id)"
         )
         cur.execute(
             "CREATE TABLE IF NOT EXISTS convocatorias ("
@@ -267,9 +280,10 @@ class AlmacenSQLite:
     def guardar_entidad(self, entidad: Entidad) -> None:
         payload = json.dumps(asdict(entidad), default=_codificar_json, ensure_ascii=False)
         self._conn.execute(
-            "INSERT INTO entidades (entidad_id, datos_json) VALUES (?, ?) "
-            "ON CONFLICT(entidad_id) DO UPDATE SET datos_json = excluded.datos_json",
-            (entidad.entidad_id, payload),
+            "INSERT INTO entidades (entidad_id, email, datos_json) VALUES (?, ?, ?) "
+            "ON CONFLICT(entidad_id) DO UPDATE SET "
+            "email = excluded.email, datos_json = excluded.datos_json",
+            (entidad.entidad_id, entidad.contacto.email, payload),
         )
         self._conn.commit()
 
@@ -280,6 +294,22 @@ class AlmacenSQLite:
         if fila is None:
             return None
         return self._decodificar("entidad", entidad_id, _entidad_desde_dict, json.loads(fila[0]))
+
+    def obtener_entidad_por_email(self, email: str) -> Entidad | None:
+        """Login por email (ADR-005 §5). Email duplicado entre entidades =
+        login ambiguo: decisión conservadora, devuelve None y lo cuenta —
+        nunca elige una entidad al azar entre coincidencias."""
+        filas = self._conn.execute(
+            "SELECT entidad_id, datos_json FROM entidades WHERE email = ?", (email,)
+        ).fetchall()
+        if len(filas) != 1:
+            if len(filas) > 1:
+                self.entidades_duplicadas_por_email += 1
+            return None
+        entidad_id, datos_json = filas[0]
+        return self._decodificar(
+            "entidad", entidad_id, _entidad_desde_dict, json.loads(datos_json)
+        )
 
     # Convocatorias ----------------------------------------------------
     def guardar_convocatoria(self, convocatoria: Convocatoria) -> None:
@@ -347,3 +377,31 @@ class AlmacenSQLite:
             if match is not None:
                 matches.append(match)
         return matches
+
+    # Tokens de acceso (magic link) — ADR-005 §5 ------------------------
+    def crear_token(self, entidad_id: str, token_hash: str, expira_en: datetime) -> None:
+        self._conn.execute(
+            "INSERT INTO tokens_acceso (token_hash, entidad_id, expira_en, usado_en) "
+            "VALUES (?, ?, ?, NULL) "
+            "ON CONFLICT(token_hash) DO UPDATE SET "
+            "entidad_id = excluded.entidad_id, expira_en = excluded.expira_en, usado_en = NULL",
+            (token_hash, entidad_id, expira_en.isoformat()),
+        )
+        self._conn.commit()
+
+    def consumir_token(self, token_hash: str, ahora: datetime) -> str | None:
+        """UPDATE atómico (check-and-mark-used en una sola sentencia SQL): solo
+        marca usado si existía, no había expirado y no se había usado ya."""
+        ahora_iso = ahora.isoformat()
+        cur = self._conn.execute(
+            "UPDATE tokens_acceso SET usado_en = ? "
+            "WHERE token_hash = ? AND usado_en IS NULL AND expira_en > ?",
+            (ahora_iso, token_hash, ahora_iso),
+        )
+        self._conn.commit()
+        if cur.rowcount != 1:
+            return None
+        fila = self._conn.execute(
+            "SELECT entidad_id FROM tokens_acceso WHERE token_hash = ?", (token_hash,)
+        ).fetchone()
+        return fila[0] if fila else None
