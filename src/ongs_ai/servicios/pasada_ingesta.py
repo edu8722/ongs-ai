@@ -40,6 +40,7 @@ from ongs_ai.ia.explicacion_match import ExplicadorClaudeCLI, GeneradorExplicaci
 from ongs_ai.ia.extraccion_requisitos import enriquecer_requisitos
 from ongs_ai.servicios.notificacion import Notificador
 from ongs_ai.servicios.propuestas import detectar_y_proponer
+from ongs_ai.servicios.recurrentes import ContextoEnlace, reevaluar_entidad
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,12 @@ class ResumenPasada:
     fallos_ia_inesperados: int
     descartadas_no_abiertas: int
     descartadas_concesion_directa: int
+    # ADR-007 §5/§9 — enganche del proactivo: enlace + re-derivación SIN red
+    # para cada entidad captada, al final de la pasada (ver
+    # `_reevaluar_recurrentes_seguro`). 0/0 si no hay entidades o no hay
+    # historial de concesiones capturado aún (`scripts/derivar_recurrentes.py`).
+    esperadas_enlazadas: int
+    esperadas_no_aparecidas: int
     # A3: vacío en una pasada de una sola búsqueda (`ejecutar_pasada`) o de
     # recálculo (`ejecutar_pasada_recalculo`); con el detalle por término en
     # una pasada por batería (`ejecutar_pasada_bateria`).
@@ -259,6 +266,81 @@ def _generador_explicacion_con_freno(
     return generador_explicacion
 
 
+# --- ADR-007 §5/§9 — enganche del proactivo a la pasada de ingesta ---------
+
+
+def _reevaluar_recurrentes_seguro(
+    almacen,
+    convocatorias_procesadas: list[Convocatoria],
+    fecha_referencia: date,
+    *,
+    generador_ids: Callable[[], str],
+    reloj: Callable[[], datetime],
+) -> tuple[int, int, tuple[ContextoEnlace, ...]]:
+    """Para cada entidad CAPTADA (`almacen.listar_entidades()` — un
+    `Prospecto` sin NIF no tiene proactivo, ADR-007 §1/§3.9): enlace +
+    re-derivación SIN red (`servicios/recurrentes.py::reevaluar_entidad`,
+    nunca vuelve a consultar la BDNS de concesiones aquí). Un fallo en UNA
+    entidad se registra y se salta (degradación limpia, CLAUDE.md) — nunca
+    tumba la pasada de ingesta completa."""
+    total_enlazadas = 0
+    total_no_aparecidas = 0
+    contextos: list[ContextoEnlace] = []
+    for entidad in almacen.listar_entidades():
+        try:
+            resumen = reevaluar_entidad(
+                entidad.entidad_id,
+                convocatorias_procesadas,
+                almacen,
+                almacen,
+                fecha_referencia,
+                generador_id=generador_ids,
+                reloj=reloj,
+            )
+        except Exception:
+            logger.warning(
+                "ejecutar_pasada: fallo inesperado re-evaluando recurrentes de %s",
+                entidad.entidad_id,
+                exc_info=True,
+            )
+            continue
+        total_enlazadas += resumen.esperadas_enlazadas
+        total_no_aparecidas += resumen.esperadas_no_aparecidas
+        contextos.extend(resumen.contextos_enlace)
+    return total_enlazadas, total_no_aparecidas, tuple(contextos)
+
+
+class _GeneradorExplicacionConContextoEsperadas:
+    """ADR-007 §3.8.1 — el aviso de propuesta existente gana UNA línea de
+    contexto cuando su convocatoria acaba de enlazarse (`§3.6`) con una
+    esperada de esa entidad ("la ayuda que recibiste en <año> ya está
+    abierta de nuevo"). NO crea canal nuevo ni duplica el aviso: envuelve el
+    generador de explicación que ya usa `detectar_y_proponer` (ADR-004),
+    añadiendo texto factual, nunca generado por IA."""
+
+    def __init__(
+        self, generador: GeneradorExplicacion | None, contextos: tuple[ContextoEnlace, ...]
+    ) -> None:
+        self._generador = generador
+        self._anio_por_clave = {(c.entidad_id, c.convocatoria_id): c.anio_recibido_antes for c in contextos}
+
+    def generar(self, entidad, convocatoria, resultado) -> str:
+        texto = self._generador.generar(entidad, convocatoria, resultado) if self._generador else ""
+        anio = self._anio_por_clave.get((entidad.entidad_id, convocatoria.convocatoria_id))
+        if anio is None:
+            return texto
+        linea_contexto = f"La ayuda que recibiste en {anio} ya está abierta de nuevo."
+        return f"{texto}\n\n{linea_contexto}" if texto else linea_contexto
+
+
+def _generador_explicacion_con_contexto_esperadas(
+    generador_explicacion: GeneradorExplicacion | None, contextos: tuple[ContextoEnlace, ...]
+) -> GeneradorExplicacion | None:
+    if not contextos:
+        return generador_explicacion
+    return _GeneradorExplicacionConContextoEsperadas(generador_explicacion, contextos)
+
+
 def ejecutar_pasada(
     fuente: FuenteConvocatorias,
     almacen,
@@ -300,8 +382,15 @@ def ejecutar_pasada(
         stats,
     )
 
+    esperadas_enlazadas, esperadas_no_aparecidas, contextos_enlace = _reevaluar_recurrentes_seguro(
+        almacen, convocatorias_procesadas, fecha_referencia, generador_ids=generador_ids, reloj=reloj
+    )
+
     generador_explicacion_efectivo = _generador_explicacion_con_freno(
         generador_explicacion, cliente_ia, max_llamadas_ia, contador_fallos_inesperados
+    )
+    generador_explicacion_efectivo = _generador_explicacion_con_contexto_esperadas(
+        generador_explicacion_efectivo, contextos_enlace
     )
 
     entidades = almacen.listar_entidades()
@@ -322,6 +411,8 @@ def ejecutar_pasada(
         ya_existentes=resumen_ingesta.ya_existentes,
         enriquecidas_por_ia=stats.enriquecidas,
         promovidas=stats.promovidas,
+        esperadas_enlazadas=esperadas_enlazadas,
+        esperadas_no_aparecidas=esperadas_no_aparecidas,
         propuestas_nuevas=resumen_propuestas.nuevas_propuestas,
         propuestas_sobrevenidas=resumen_propuestas.propuestas_sobrevenidas,
         avisos_intentados=(
@@ -414,8 +505,15 @@ def ejecutar_pasada_bateria(
             )
         )
 
+    esperadas_enlazadas, esperadas_no_aparecidas, contextos_enlace = _reevaluar_recurrentes_seguro(
+        almacen, convocatorias_procesadas, fecha_referencia, generador_ids=generador_ids, reloj=reloj
+    )
+
     generador_explicacion_efectivo = _generador_explicacion_con_freno(
         generador_explicacion, cliente_ia, max_llamadas_ia, contador_fallos_inesperados
+    )
+    generador_explicacion_efectivo = _generador_explicacion_con_contexto_esperadas(
+        generador_explicacion_efectivo, contextos_enlace
     )
 
     entidades = almacen.listar_entidades()
@@ -436,6 +534,8 @@ def ejecutar_pasada_bateria(
         ya_existentes=ya_existentes_totales,
         enriquecidas_por_ia=stats_totales.enriquecidas,
         promovidas=stats_totales.promovidas,
+        esperadas_enlazadas=esperadas_enlazadas,
+        esperadas_no_aparecidas=esperadas_no_aparecidas,
         propuestas_nuevas=resumen_propuestas.nuevas_propuestas,
         propuestas_sobrevenidas=resumen_propuestas.propuestas_sobrevenidas,
         avisos_intentados=(
@@ -468,9 +568,18 @@ def ejecutar_pasada_recalculo(
     pipeline (mismo guardarraíl de elegibilidad, nunca duplicado). Es la
     acción "Recalcular revisiones" de la consola web — el operador puede
     lanzarla sin esperar a una pasada de ingesta completa, p. ej. tras editar
-    la cartera de una entidad."""
+    la cartera de una entidad. También reevalúa recurrentes (ADR-007 §5/§9)
+    sobre el catálogo YA ingerido — útil tras editar el NIF/cartera de una
+    entidad sin esperar a la siguiente ingesta con red."""
     convocatorias = almacen.listar_convocatorias()
     entidades = almacen.listar_entidades()
+
+    esperadas_enlazadas, esperadas_no_aparecidas, contextos_enlace = _reevaluar_recurrentes_seguro(
+        almacen, convocatorias, fecha_referencia, generador_ids=generador_ids, reloj=reloj
+    )
+    generador_explicacion_efectivo = _generador_explicacion_con_contexto_esperadas(
+        generador_explicacion, contextos_enlace
+    )
 
     resumen_propuestas = detectar_y_proponer(
         entidades,
@@ -480,7 +589,7 @@ def ejecutar_pasada_recalculo(
         notificador,
         generador_ids=generador_ids,
         reloj=reloj,
-        generador_explicacion=generador_explicacion,
+        generador_explicacion=generador_explicacion_efectivo,
     )
 
     return ResumenPasada(
@@ -488,6 +597,8 @@ def ejecutar_pasada_recalculo(
         ya_existentes=0,
         enriquecidas_por_ia=0,
         promovidas=0,
+        esperadas_enlazadas=esperadas_enlazadas,
+        esperadas_no_aparecidas=esperadas_no_aparecidas,
         propuestas_nuevas=resumen_propuestas.nuevas_propuestas,
         propuestas_sobrevenidas=resumen_propuestas.propuestas_sobrevenidas,
         avisos_intentados=(

@@ -28,6 +28,7 @@ from ongs_ai.dominio.entidades import (
     TipoActividad,
 )
 from ongs_ai.dominio.matching_estado import ActorAsiento, EstadoMatch, crear_match, transicionar
+from ongs_ai.proactivo.modelo import Confianza, ConvocatoriaEsperada, EstadoEsperada, HistorialConcesion
 from ongs_ai.servicios.autenticacion import EnviadorEnlaceAccesoStub
 from ongs_ai.web.app import crear_app
 
@@ -104,6 +105,75 @@ def test_consulta_por_entidad_a_no_expone_datos_economicos_de_entidad_b(almacen)
     assert obtenida is not None
     assert obtenida.datos_economicos_ejercicio_anterior.ingresos_centimos == 111_111
     assert obtenida.datos_economicos_ejercicio_anterior.ingresos_centimos != 222_222
+
+
+# --- Anti-fuga ampliada a historial/esperadas (ADR-007 §3.9) ---------------
+
+
+def _historial(historial_id: str, entidad_id: str, cod_concesion: str) -> HistorialConcesion:
+    return HistorialConcesion(
+        historial_id=historial_id,
+        entidad_id=entidad_id,
+        cod_concesion=cod_concesion,
+        nif_beneficiario=f"NIF-{entidad_id}",
+        fecha_concesion=date(2024, 9, 15),
+        importe_centimos=100_000,
+        cod_bdns_convocatoria="700001",
+        titulo_convocatoria="Ayuda ficticia",
+        organo_nivel1="ESTADO",
+        organo_nivel2="MINISTERIO X",
+        organo_nivel3=None,
+        es_concesion_directa=False,
+        serie_fingerprint="estado|ministerio x::ayuda ficticia",
+        apertura_convocatoria=date(2024, 5, 1),
+        capturado_en=T0,
+    )
+
+
+def _esperada(esperada_id: str, entidad_id: str) -> ConvocatoriaEsperada:
+    return ConvocatoriaEsperada(
+        esperada_id=esperada_id,
+        entidad_id=entidad_id,
+        serie_fingerprint="estado|ministerio x::ayuda ficticia",
+        titulo_representativo="Ayuda ficticia",
+        organo="ESTADO / MINISTERIO X",
+        ediciones_previas=1,
+        anios_observados=(2024,),
+        ventana_mes_inicio=5,
+        ventana_mes_fin=5,
+        anio_esperado=2025,
+        confianza=Confianza.BAJA,
+        accionable=True,
+        estado=EstadoEsperada.ESPERADA,
+        convocatoria_id_enlazada=None,
+        creado_en=T0,
+        actualizado_en=T0,
+    )
+
+
+def test_historial_de_entidad_a_nunca_devuelve_historial_de_entidad_b(almacen):
+    almacen.guardar_historial(_historial("hist-A", "ent-hist-A", "conc-A"))
+    almacen.guardar_historial(_historial("hist-B", "ent-hist-B", "conc-B"))
+
+    historial_de_a = almacen.listar_historial_por_entidad("ent-hist-A")
+
+    assert [h.historial_id for h in historial_de_a] == ["hist-A"]
+    assert all(h.entidad_id == "ent-hist-A" for h in historial_de_a)
+    assert almacen.obtener_historial_por_cod_concesion("ent-hist-A", "conc-B") is None
+
+
+def test_esperadas_de_entidad_a_nunca_devuelve_esperadas_de_entidad_b(almacen):
+    almacen.guardar_esperada(_esperada("esp-A", "ent-esp-A"))
+    almacen.guardar_esperada(_esperada("esp-B", "ent-esp-B"))
+
+    esperadas_de_a = almacen.listar_esperadas_por_entidad("ent-esp-A")
+
+    assert [e.esperada_id for e in esperadas_de_a] == ["esp-A"]
+    assert all(e.entidad_id == "ent-esp-A" for e in esperadas_de_a)
+    assert almacen.obtener_esperada("ent-esp-A", "estado|ministerio x::ayuda ficticia", 2025) is not None
+    # la clave de upsert exige el propio entidad_id — B jamás aparece bajo A
+    obtenida = almacen.obtener_esperada("ent-esp-A", "estado|ministerio x::ayuda ficticia", 2025)
+    assert obtenida.esperada_id != "esp-B"
 
 
 # --- Anti-fuga a nivel HTTP (ADR-005 §2.3/§6, F-web.1) ---------------------

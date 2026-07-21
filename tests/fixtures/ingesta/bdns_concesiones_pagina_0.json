@@ -1,0 +1,78 @@
+{
+  "content": [
+    {
+      "id": 9000001,
+      "codConcesion": "CONC-9000001",
+      "beneficiario": "G00000001 ASOCIACION FICTICIA DE PRUEBA UNO",
+      "fechaConcesion": "2024-09-15",
+      "importe": 3000.5,
+      "numeroConvocatoria": "700001",
+      "idConvocatoria": 8000001,
+      "convocatoria": "Convocatoria de subvenciones IRPF 0,7% estatal 2024",
+      "nivel1": "ESTADO",
+      "nivel2": "MINISTERIO FICTICIO DE DERECHOS SOCIALES",
+      "nivel3": "DIRECCIÓN GENERAL FICTICIA DE SERVICIOS SOCIALES"
+    },
+    {
+      "id": 9000002,
+      "codConcesion": "CONC-9000002",
+      "beneficiario": "G00000001 ASOCIACION FICTICIA DE PRUEBA UNO",
+      "fechaConcesion": "2025-09-10",
+      "importe": 3200,
+      "numeroConvocatoria": "700002",
+      "idConvocatoria": 8000002,
+      "convocatoria": "Convocatoria de subvenciones IRPF 0,7% estatal 2025",
+      "nivel1": "ESTADO",
+      "nivel2": "MINISTERIO FICTICIO DE DERECHOS SOCIALES",
+      "nivel3": "DIRECCIÓN GENERAL FICTICIA DE OTRO NOMBRE TRAS REORGANIZACIÓN"
+    },
+    {
+      "id": 9000003,
+      "codConcesion": "CONC-9000003",
+      "beneficiario": "G00000001 ASOCIACION FICTICIA DE PRUEBA UNO",
+      "fechaConcesion": "2024-03-01",
+      "importe": 500,
+      "numeroConvocatoria": "700003",
+      "idConvocatoria": 8000003,
+      "convocatoria": "Ayuda nominativa ficticia de adjudicación directa",
+      "nivel1": "AUTONOMICA",
+      "nivel2": "CANARIAS FICTICIA",
+      "nivel3": "CONSEJERÍA FICTICIA DE EMPLEO"
+    },
+    {
+      "id": 9000004,
+      "codConcesion": "",
+      "beneficiario": "G00000001 ASOCIACION FICTICIA DE PRUEBA UNO",
+      "fechaConcesion": "2024-05-01",
+      "importe": 100,
+      "numeroConvocatoria": "700004",
+      "idConvocatoria": 8000004,
+      "convocatoria": "Concesión descartable sin codConcesion",
+      "nivel1": "LOCAL",
+      "nivel2": "VILAFICTICIA",
+      "nivel3": "AYUNTAMIENTO DE VILAFICTICIA"
+    },
+    {
+      "id": 9000005,
+      "codConcesion": "CONC-9000005",
+      "beneficiario": "BENEFICIARIOSINESPACIOS",
+      "fechaConcesion": "2024-06-01",
+      "importe": 200,
+      "numeroConvocatoria": "700005",
+      "idConvocatoria": 8000005,
+      "convocatoria": "Concesión descartable sin NIF parseable",
+      "nivel1": "LOCAL",
+      "nivel2": "VILAFICTICIA",
+      "nivel3": "AYUNTAMIENTO DE VILAFICTICIA"
+    }
+  ],
+  "pageable": {"pageNumber": 0, "pageSize": 5},
+  "last": true,
+  "totalPages": 1,
+  "totalElements": 5,
+  "first": true,
+  "numberOfElements": 5,
+  "size": 5,
+  "number": 0,
+  "empty": false
+}

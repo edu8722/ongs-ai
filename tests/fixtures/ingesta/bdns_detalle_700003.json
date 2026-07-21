@@ -1,0 +1,15 @@
+{
+  "organo": {
+    "nivel1": "AUTONOMICA",
+    "nivel2": "CANARIAS FICTICIA",
+    "nivel3": "CONSEJERÍA FICTICIA DE EMPLEO"
+  },
+  "codigoBDNS": "700003",
+  "tipoConvocatoria": "Concesión directa - instrumental",
+  "descripcion": "Ayuda nominativa ficticia de adjudicación directa",
+  "descripcionFinalidad": "Otras Prestaciones económicas",
+  "regiones": [{"descripcion": "ES7 - CANARIAS FICTICIA"}],
+  "tiposBeneficiarios": [{"descripcion": "PERSONAS JURÍDICAS QUE NO DESARROLLAN ACTIVIDAD ECONÓMICA"}],
+  "abierto": false,
+  "presupuestoTotal": 50000
+}

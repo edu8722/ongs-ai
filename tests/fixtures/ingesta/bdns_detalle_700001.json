@@ -1,0 +1,17 @@
+{
+  "organo": {
+    "nivel1": "ESTADO",
+    "nivel2": "MINISTERIO FICTICIO DE DERECHOS SOCIALES",
+    "nivel3": "DIRECCIÓN GENERAL FICTICIA DE SERVICIOS SOCIALES"
+  },
+  "codigoBDNS": "700001",
+  "tipoConvocatoria": "Concurrencia competitiva - canónica",
+  "descripcion": "Convocatoria de subvenciones IRPF 0,7% estatal 2024",
+  "descripcionFinalidad": "Servicios Sociales y Promoción Social",
+  "regiones": [{"descripcion": "ES - ESPAÑA "}],
+  "tiposBeneficiarios": [{"descripcion": "PERSONAS JURÍDICAS QUE NO DESARROLLAN ACTIVIDAD ECONÓMICA"}],
+  "abierto": false,
+  "fechaInicioSolicitud": "2024-05-10",
+  "fechaFinSolicitud": "2024-06-10",
+  "presupuestoTotal": 1000000
+}

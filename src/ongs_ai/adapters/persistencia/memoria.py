@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from ongs_ai.dominio.entidades import Convocatoria, Entidad
 from ongs_ai.dominio.matching_estado import Match
+from ongs_ai.proactivo.modelo import ConvocatoriaEsperada, HistorialConcesion
 from ongs_ai.prospeccion.modelo import Prospecto
 
 
@@ -20,7 +21,9 @@ def _normalizar_utc(momento: datetime) -> datetime:
 class AlmacenMemoria:
     """Implementa RepositorioEntidades + RepositorioConvocatorias + RepositorioMatches
     + RepositorioTokensAcceso + RepositorioProspectos (ADR-006 §2.7 — Prospecto es
-    fuera de contrato, pero el mismo almacén físico lo persiste)."""
+    fuera de contrato, pero el mismo almacén físico lo persiste) +
+    RepositorioHistorialConcesiones + RepositorioConvocatoriasEsperadas (ADR-007
+    §3.1 — proactivo, también fuera de contrato, mismo almacén físico)."""
 
     def __init__(self) -> None:
         self._entidades: dict[str, Entidad] = {}
@@ -28,6 +31,8 @@ class AlmacenMemoria:
         self._matches: dict[str, Match] = {}
         self._tokens_acceso: dict[str, dict] = {}
         self._prospectos: dict[str, Prospecto] = {}
+        self._historial_concesiones: dict[str, HistorialConcesion] = {}
+        self._esperadas: dict[str, ConvocatoriaEsperada] = {}
         self.entidades_duplicadas_por_email = 0
 
     # Entidades ------------------------------------------------------
@@ -99,3 +104,38 @@ class AlmacenMemoria:
 
     def listar_prospectos(self) -> list[Prospecto]:
         return list(self._prospectos.values())
+
+    # Historial de concesiones (ADR-007 §3.1 — fuera del contrato congelado,
+    # SIEMPRE filtrado por entidad_id, aislamiento por tenant §3.9) --------
+    def guardar_historial(self, historial: HistorialConcesion) -> None:
+        self._historial_concesiones[historial.historial_id] = historial
+
+    def obtener_historial_por_cod_concesion(
+        self, entidad_id: str, cod_concesion: str
+    ) -> HistorialConcesion | None:
+        for historial in self._historial_concesiones.values():
+            if historial.entidad_id == entidad_id and historial.cod_concesion == cod_concesion:
+                return historial
+        return None
+
+    def listar_historial_por_entidad(self, entidad_id: str) -> list[HistorialConcesion]:
+        return [h for h in self._historial_concesiones.values() if h.entidad_id == entidad_id]
+
+    # Convocatorias esperadas (ADR-007 §3.1 — SIEMPRE filtrado por entidad_id) -
+    def guardar_esperada(self, esperada: ConvocatoriaEsperada) -> None:
+        self._esperadas[esperada.esperada_id] = esperada
+
+    def obtener_esperada(
+        self, entidad_id: str, serie_fingerprint: str, anio_esperado: int
+    ) -> ConvocatoriaEsperada | None:
+        for esperada in self._esperadas.values():
+            if (
+                esperada.entidad_id == entidad_id
+                and esperada.serie_fingerprint == serie_fingerprint
+                and esperada.anio_esperado == anio_esperado
+            ):
+                return esperada
+        return None
+
+    def listar_esperadas_por_entidad(self, entidad_id: str) -> list[ConvocatoriaEsperada]:
+        return [e for e in self._esperadas.values() if e.entidad_id == entidad_id]

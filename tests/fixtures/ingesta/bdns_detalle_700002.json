@@ -1,0 +1,17 @@
+{
+  "organo": {
+    "nivel1": "ESTADO",
+    "nivel2": "MINISTERIO FICTICIO DE DERECHOS SOCIALES",
+    "nivel3": "DIRECCIÓN GENERAL FICTICIA DE OTRO NOMBRE TRAS REORGANIZACIÓN"
+  },
+  "codigoBDNS": "700002",
+  "tipoConvocatoria": "Concurrencia competitiva - canónica",
+  "descripcion": "Convocatoria de subvenciones IRPF 0,7% estatal 2025",
+  "descripcionFinalidad": "Servicios Sociales y Promoción Social",
+  "regiones": [{"descripcion": "ES - ESPAÑA "}],
+  "tiposBeneficiarios": [{"descripcion": "PERSONAS JURÍDICAS QUE NO DESARROLLAN ACTIVIDAD ECONÓMICA"}],
+  "abierto": false,
+  "fechaInicioSolicitud": "2025-05-20",
+  "fechaFinSolicitud": "2025-06-20",
+  "presupuestoTotal": 1000000
+}

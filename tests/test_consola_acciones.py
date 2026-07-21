@@ -25,6 +25,8 @@ def _resumen_fake(**overrides) -> ResumenPasada:
         ya_existentes=2,
         enriquecidas_por_ia=3,
         promovidas=1,
+        esperadas_enlazadas=0,
+        esperadas_no_aparecidas=0,
         propuestas_nuevas=4,
         propuestas_sobrevenidas=0,
         avisos_intentados=4,

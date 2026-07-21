@@ -50,6 +50,7 @@ from ongs_ai.dominio.matching_estado import (
     Match,
     ResultadoElegibilidad,
 )
+from ongs_ai.proactivo.modelo import Confianza, ConvocatoriaEsperada, EstadoEsperada, HistorialConcesion
 from ongs_ai.prospeccion.modelo import Prospecto
 
 RAIZ_REPO = Path(__file__).resolve().parents[4]
@@ -235,11 +236,55 @@ def _prospecto_desde_dict(d: dict) -> Prospecto:
     )
 
 
+def _historial_desde_dict(d: dict) -> HistorialConcesion:
+    apertura = d.get("apertura_convocatoria")
+    return HistorialConcesion(
+        historial_id=d["historial_id"],
+        entidad_id=d["entidad_id"],
+        cod_concesion=d["cod_concesion"],
+        nif_beneficiario=d["nif_beneficiario"],
+        fecha_concesion=date.fromisoformat(d["fecha_concesion"]),
+        importe_centimos=d.get("importe_centimos"),
+        cod_bdns_convocatoria=d["cod_bdns_convocatoria"],
+        titulo_convocatoria=d["titulo_convocatoria"],
+        organo_nivel1=d.get("organo_nivel1"),
+        organo_nivel2=d.get("organo_nivel2"),
+        organo_nivel3=d.get("organo_nivel3"),
+        es_concesion_directa=d["es_concesion_directa"],
+        serie_fingerprint=d["serie_fingerprint"],
+        apertura_convocatoria=date.fromisoformat(apertura) if apertura else None,
+        capturado_en=datetime.fromisoformat(d["capturado_en"]),
+    )
+
+
+def _esperada_desde_dict(d: dict) -> ConvocatoriaEsperada:
+    return ConvocatoriaEsperada(
+        esperada_id=d["esperada_id"],
+        entidad_id=d["entidad_id"],
+        serie_fingerprint=d["serie_fingerprint"],
+        titulo_representativo=d["titulo_representativo"],
+        organo=d.get("organo"),
+        ediciones_previas=d["ediciones_previas"],
+        anios_observados=tuple(d.get("anios_observados", ())),
+        ventana_mes_inicio=d["ventana_mes_inicio"],
+        ventana_mes_fin=d["ventana_mes_fin"],
+        anio_esperado=d["anio_esperado"],
+        confianza=Confianza(d["confianza"]),
+        accionable=d["accionable"],
+        estado=EstadoEsperada(d["estado"]),
+        convocatoria_id_enlazada=d.get("convocatoria_id_enlazada"),
+        creado_en=datetime.fromisoformat(d["creado_en"]),
+        actualizado_en=datetime.fromisoformat(d["actualizado_en"]),
+    )
+
+
 _ERRORES_DATO_FEO = (KeyError, ValueError, TypeError, ErrorDominio)
 
 
 class AlmacenSQLite:
-    """Implementa RepositorioEntidades + RepositorioConvocatorias + RepositorioMatches."""
+    """Implementa RepositorioEntidades + RepositorioConvocatorias + RepositorioMatches
+    + RepositorioTokensAcceso + RepositorioProspectos + RepositorioHistorialConcesiones
+    + RepositorioConvocatoriasEsperadas (ADR-007 §3.1 — proactivo, fuera de contrato)."""
 
     def __init__(self, ruta_db: str | Path = RUTA_DB_DEFECTO) -> None:
         # FastAPI ejecuta las rutas sync en un threadpool (nunca el hilo que
@@ -304,6 +349,35 @@ class AlmacenSQLite:
         cur.execute(
             "CREATE TABLE IF NOT EXISTS prospectos ("
             "prospecto_id TEXT PRIMARY KEY, datos_json TEXT NOT NULL)"
+        )
+        # ADR-007 §3.1/§6.1 — proactivo, fuera del contrato congelado, mismo
+        # patrón idempotente. SIEMPRE indexado por entidad_id (aislamiento).
+        cur.execute(
+            "CREATE TABLE IF NOT EXISTS historial_concesiones ("
+            "historial_id TEXT PRIMARY KEY, entidad_id TEXT NOT NULL, "
+            "cod_concesion TEXT NOT NULL, datos_json TEXT NOT NULL)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS ix_historial_entidad_id "
+            "ON historial_concesiones(entidad_id)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS ix_historial_entidad_cod_concesion "
+            "ON historial_concesiones(entidad_id, cod_concesion)"
+        )
+        cur.execute(
+            "CREATE TABLE IF NOT EXISTS convocatorias_esperadas ("
+            "esperada_id TEXT PRIMARY KEY, entidad_id TEXT NOT NULL, "
+            "serie_fingerprint TEXT NOT NULL, anio_esperado INTEGER NOT NULL, "
+            "datos_json TEXT NOT NULL)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS ix_esperadas_entidad_id "
+            "ON convocatorias_esperadas(entidad_id)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS ix_esperadas_entidad_serie_anio "
+            "ON convocatorias_esperadas(entidad_id, serie_fingerprint, anio_esperado)"
         )
         cur.execute(
             "INSERT OR IGNORE INTO schema_meta (clave, valor) VALUES ('version', ?)",
@@ -529,3 +603,101 @@ class AlmacenSQLite:
             if prospecto is not None:
                 prospectos.append(prospecto)
         return prospectos
+
+    # Historial de concesiones (ADR-007 §3.1 — fuera del contrato congelado,
+    # SIEMPRE filtrado por entidad_id, aislamiento por tenant §3.9) --------
+    def guardar_historial(self, historial: HistorialConcesion) -> None:
+        payload = json.dumps(asdict(historial), default=_codificar_json, ensure_ascii=False)
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO historial_concesiones "
+                "(historial_id, entidad_id, cod_concesion, datos_json) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(historial_id) DO UPDATE SET "
+                "entidad_id = excluded.entidad_id, cod_concesion = excluded.cod_concesion, "
+                "datos_json = excluded.datos_json",
+                (historial.historial_id, historial.entidad_id, historial.cod_concesion, payload),
+            )
+            self._conn.commit()
+
+    def obtener_historial_por_cod_concesion(
+        self, entidad_id: str, cod_concesion: str
+    ) -> HistorialConcesion | None:
+        with self._lock:
+            fila = self._conn.execute(
+                "SELECT historial_id, datos_json FROM historial_concesiones "
+                "WHERE entidad_id = ? AND cod_concesion = ?",
+                (entidad_id, cod_concesion),
+            ).fetchone()
+        if fila is None:
+            return None
+        historial_id, datos_json = fila
+        return self._decodificar(
+            "historial_concesion", historial_id, _historial_desde_dict, json.loads(datos_json)
+        )
+
+    def listar_historial_por_entidad(self, entidad_id: str) -> list[HistorialConcesion]:
+        with self._lock:
+            filas = self._conn.execute(
+                "SELECT historial_id, datos_json FROM historial_concesiones WHERE entidad_id = ?",
+                (entidad_id,),
+            ).fetchall()
+        historial = []
+        for historial_id, datos_json in filas:
+            item = self._decodificar(
+                "historial_concesion", historial_id, _historial_desde_dict, json.loads(datos_json)
+            )
+            if item is not None:
+                historial.append(item)
+        return historial
+
+    # Convocatorias esperadas (ADR-007 §3.1 — SIEMPRE filtrado por entidad_id) -
+    def guardar_esperada(self, esperada: ConvocatoriaEsperada) -> None:
+        payload = json.dumps(asdict(esperada), default=_codificar_json, ensure_ascii=False)
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO convocatorias_esperadas "
+                "(esperada_id, entidad_id, serie_fingerprint, anio_esperado, datos_json) "
+                "VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(esperada_id) DO UPDATE SET "
+                "entidad_id = excluded.entidad_id, serie_fingerprint = excluded.serie_fingerprint, "
+                "anio_esperado = excluded.anio_esperado, datos_json = excluded.datos_json",
+                (
+                    esperada.esperada_id,
+                    esperada.entidad_id,
+                    esperada.serie_fingerprint,
+                    esperada.anio_esperado,
+                    payload,
+                ),
+            )
+            self._conn.commit()
+
+    def obtener_esperada(
+        self, entidad_id: str, serie_fingerprint: str, anio_esperado: int
+    ) -> ConvocatoriaEsperada | None:
+        with self._lock:
+            fila = self._conn.execute(
+                "SELECT esperada_id, datos_json FROM convocatorias_esperadas "
+                "WHERE entidad_id = ? AND serie_fingerprint = ? AND anio_esperado = ?",
+                (entidad_id, serie_fingerprint, anio_esperado),
+            ).fetchone()
+        if fila is None:
+            return None
+        esperada_id, datos_json = fila
+        return self._decodificar(
+            "esperada", esperada_id, _esperada_desde_dict, json.loads(datos_json)
+        )
+
+    def listar_esperadas_por_entidad(self, entidad_id: str) -> list[ConvocatoriaEsperada]:
+        with self._lock:
+            filas = self._conn.execute(
+                "SELECT esperada_id, datos_json FROM convocatorias_esperadas WHERE entidad_id = ?",
+                (entidad_id,),
+            ).fetchall()
+        esperadas = []
+        for esperada_id, datos_json in filas:
+            item = self._decodificar(
+                "esperada", esperada_id, _esperada_desde_dict, json.loads(datos_json)
+            )
+            if item is not None:
+                esperadas.append(item)
+        return esperadas
