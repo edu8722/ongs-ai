@@ -60,7 +60,13 @@ def test_enlace_de_preparar_demo_crea_sesion_contra_sqlite_en_fichero(ruta_db_te
     )
     client = TestClient(app)
 
-    resp_confirmar = client.get(f"/login/confirmar?token={token}", follow_redirects=False)
+    # PROMPT-022 B: el GET (el que imprime/envía el enlace) ya NO consume --
+    # esto es justo lo que reproduce el fallo real del operador (un
+    # prefetch/escáner especulativo hacía este mismo GET y gastaba el token).
+    resp_get = client.get(f"/login/confirmar?token={token}")
+    assert resp_get.status_code == 200
+
+    resp_confirmar = client.post("/login/confirmar", data={"token": token}, follow_redirects=False)
     assert resp_confirmar.status_code == 303
     assert resp_confirmar.headers["location"] == "/panel"
 
@@ -68,6 +74,8 @@ def test_enlace_de_preparar_demo_crea_sesion_contra_sqlite_en_fichero(ruta_db_te
     assert resp_panel.status_code == 200
     assert "ABAIMAR" in resp_panel.text
 
-    # Un solo uso: repetir el mismo enlace ya no debe funcionar.
-    resp_segunda_vez = client.get(f"/login/confirmar?token={token}", follow_redirects=False)
+    # Un solo uso: repetir el mismo enlace (vía POST, que es lo que consume) ya no debe funcionar.
+    resp_segunda_vez = client.post(
+        "/login/confirmar", data={"token": token}, follow_redirects=False
+    )
     assert resp_segunda_vez.status_code == 400

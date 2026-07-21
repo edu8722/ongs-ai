@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import itertools
+import logging
 import os
 import sys
 import uuid
@@ -59,6 +60,8 @@ from ongs_ai.ia.extraccion_requisitos import enriquecer_requisitos  # noqa: E402
 from ongs_ai.servicios.notificacion import Notificador  # noqa: E402
 from ongs_ai.servicios.propuestas import detectar_y_proponer  # noqa: E402
 
+logger = logging.getLogger(__name__)
+
 PAGINAS_MAX_DEFECTO = 1
 PAGE_SIZE_DEFECTO = 50
 MAX_LLAMADAS_IA_DEFECTO = 25
@@ -77,6 +80,7 @@ class ResumenPasada:
     saltadas_pre_puerta: int
     llamadas_ia_usadas: int
     convocatorias_sin_ia_por_freno: int
+    fallos_ia_inesperados: int
 
 
 class _FuenteMaterializada:
@@ -92,22 +96,73 @@ class _FuenteMaterializada:
         return list(self._convocatorias)
 
 
+class _ContadorMutable:
+    """Caja mutable simple para compartir un contador entre el bucle de
+    enriquecimiento y `_GeneradorExplicacionConFreno` (A3) — ambos pueden
+    incrementarlo, y su valor final viaja al resumen de la pasada."""
+
+    def __init__(self) -> None:
+        self.valor = 0
+
+    def incrementar(self) -> None:
+        self.valor += 1
+
+
+def _enriquecer_seguro(
+    cliente_ia: ClienteClaudeCLI, convocatoria: Convocatoria
+) -> tuple[Convocatoria, bool]:
+    """Cinturón y tirantes (A3, fallo real del operador): `enriquecer_requisitos`
+    ya degrada limpio ante cualquier fallo QUE `ClienteClaudeCLI.preguntar`
+    reconoce (A1/A2), pero un fallo inesperado del cliente (excepción que se
+    escapa de `preguntar` pese a esas guardas) NUNCA debe tumbar la pasada de
+    ingesta completa — se trata como si esa convocatoria simplemente no se
+    hubiera podido enriquecer esta vez."""
+    try:
+        return enriquecer_requisitos(cliente_ia, convocatoria), False
+    except Exception:
+        logger.warning(
+            "ejecutar_pasada: fallo inesperado del cliente IA enriqueciendo %s",
+            convocatoria.convocatoria_id,
+            exc_info=True,
+        )
+        return convocatoria, True
+
+
 class _GeneradorExplicacionConFreno:
     """Envuelve un `GeneradorExplicacion` real para que respete el mismo tope
     de llamadas IA que la extracción de requisitos (A4) — ambas consumen la
-    misma suscripción del operador, así que comparten un único freno."""
+    misma suscripción del operador, así que comparten un único freno.
+
+    También cinturón y tirantes (A3): `servicios.propuestas._generar_explicacion`
+    ya atrapa cualquier excepción del generador, pero esta capa la cuenta
+    aparte para que quede visible en el resumen de la pasada."""
 
     def __init__(
-        self, generador: GeneradorExplicacion, cliente: ClienteClaudeCLI, max_llamadas: int
+        self,
+        generador: GeneradorExplicacion,
+        cliente: ClienteClaudeCLI,
+        max_llamadas: int,
+        contador_fallos_inesperados: _ContadorMutable,
     ) -> None:
         self._generador = generador
         self._cliente = cliente
         self._max_llamadas = max_llamadas
+        self._contador_fallos_inesperados = contador_fallos_inesperados
 
     def generar(self, entidad, convocatoria, resultado) -> str:
         if self._cliente.llamadas >= self._max_llamadas:
             return ""
-        return self._generador.generar(entidad, convocatoria, resultado)
+        try:
+            return self._generador.generar(entidad, convocatoria, resultado)
+        except Exception:
+            logger.warning(
+                "ejecutar_pasada: fallo inesperado del generador de explicación (%s/%s)",
+                entidad.entidad_id,
+                convocatoria.convocatoria_id,
+                exc_info=True,
+            )
+            self._contador_fallos_inesperados.incrementar()
+            return ""
 
 
 def ejecutar_pasada(
@@ -142,6 +197,7 @@ def ejecutar_pasada(
     promovidas = 0
     sin_ia_por_freno = 0
     claves_vistas: set[tuple[str, str]] = set()
+    contador_fallos_inesperados = _ContadorMutable()
 
     for convocatoria_fetch in convocatorias_fetch:
         clave = (convocatoria_fetch.fuente.portal, convocatoria_fetch.fuente.url_origen)
@@ -160,8 +216,10 @@ def ejecutar_pasada(
             and actualizada.estado_ingesta is EstadoIngesta.EXTRAIDA
         ):
             if cliente_ia.llamadas < max_llamadas_ia:
-                enriquecida = enriquecer_requisitos(cliente_ia, actualizada)
-                if enriquecida is not actualizada:
+                enriquecida, fallo_inesperado = _enriquecer_seguro(cliente_ia, actualizada)
+                if fallo_inesperado:
+                    contador_fallos_inesperados.incrementar()
+                elif enriquecida is not actualizada:
                     actualizada = enriquecida
                     enriquecidas += 1
             else:
@@ -180,7 +238,7 @@ def ejecutar_pasada(
     generador_explicacion_efectivo = generador_explicacion
     if generador_explicacion is not None and cliente_ia is not None:
         generador_explicacion_efectivo = _GeneradorExplicacionConFreno(
-            generador_explicacion, cliente_ia, max_llamadas_ia
+            generador_explicacion, cliente_ia, max_llamadas_ia, contador_fallos_inesperados
         )
 
     entidades = almacen.listar_entidades()
@@ -210,6 +268,7 @@ def ejecutar_pasada(
         saltadas_pre_puerta=resumen_propuestas.saltadas_pre_puerta,
         llamadas_ia_usadas=cliente_ia.llamadas if cliente_ia is not None else 0,
         convocatorias_sin_ia_por_freno=sin_ia_por_freno,
+        fallos_ia_inesperados=contador_fallos_inesperados.valor,
     )
 
 
@@ -297,6 +356,7 @@ def main() -> None:
     print(f"Saltadas por pre-puerta (sin verificar/plazo cerrado): {resumen.saltadas_pre_puerta}")
     print(f"Llamadas IA usadas: {resumen.llamadas_ia_usadas} (tope: {args.max_llamadas_ia})")
     print(f"Convocatorias sin IA por freno de plan: {resumen.convocatorias_sin_ia_por_freno}")
+    print(f"Fallos IA inesperados (degradados, la pasada siguió): {resumen.fallos_ia_inesperados}")
 
 
 if __name__ == "__main__":

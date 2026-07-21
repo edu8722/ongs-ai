@@ -141,7 +141,7 @@ def test_http_entidad_a_logueada_no_ve_matches_de_b_ni_via_query_param():
     client = TestClient(app)
     client.post("/login", data={"email": entidad_a.contacto.email})
     token = enviador.enlaces[0].token
-    client.get(f"/login/confirmar?token={token}")
+    client.post("/login/confirmar", data={"token": token})
 
     # Ninguna ruta acepta un entidad_id ajeno como parámetro: un query param
     # `entidad_id` debe ser ignorado por completo, el tenant sale SOLO de la

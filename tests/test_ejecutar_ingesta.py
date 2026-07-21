@@ -272,6 +272,84 @@ def test_generador_explicacion_comparte_el_freno_con_la_extraccion():
     assert cliente_ia.llamadas == 1
 
 
+class _ClienteIAQueLanza:
+    """Simula un fallo inesperado del cliente IA (PROMPT-022 A3) — una
+    excepción que se escapa de `preguntar` pese a las guardas de A1/A2
+    (p. ej. un bug no contemplado). `ejecutar_pasada` NUNCA debe dejar que
+    esto tumbe la pasada completa."""
+
+    def __init__(self) -> None:
+        self.llamadas = 0
+        self.fallos = 0
+
+    def preguntar(self, prompt: str) -> str | None:
+        self.llamadas += 1
+        raise RuntimeError("fallo inesperado del cliente IA")
+
+
+def test_fallo_inesperado_del_cliente_ia_en_extraccion_no_tumba_la_pasada():
+    almacen = AlmacenMemoria()
+    almacen.guardar_entidad(_entidad())
+    fuente = _FuenteStub([_convocatoria_extraida()])
+    notificador = NotificadorStub()
+    cliente_ia = _ClienteIAQueLanza()
+
+    resumen = ejecutar_pasada(
+        fuente,
+        almacen,
+        notificador,
+        HOY,
+        cliente_ia=cliente_ia,
+        max_llamadas_ia=25,
+        generador_ids=_ids(),
+        reloj=_reloj,
+    )
+
+    assert resumen.fallos_ia_inesperados == 1
+    assert resumen.enriquecidas_por_ia == 0
+    # El resto de la pasada sigue: promoción determinista y propuesta no
+    # dependen del enriquecimiento IA.
+    assert resumen.promovidas == 1
+    assert resumen.propuestas_nuevas == 1
+
+
+class _GeneradorExplicacionQueLanza:
+    def generar(self, entidad, convocatoria, resultado) -> str:
+        raise RuntimeError("fallo inesperado del generador de explicación")
+
+
+def test_fallo_inesperado_del_generador_de_explicacion_no_tumba_la_pasada():
+    almacen = AlmacenMemoria()
+    almacen.guardar_entidad(_entidad())
+    convocatoria = _convocatoria_extraida(
+        requisitos_elegibilidad=RequisitosElegibilidad(
+            forma_juridica_requerida="asociacion",
+            antiguedad_minima_anios=0,
+            requisitos_formales_requeridos=(RequisitoFormal.INSCRITA_REGISTRO_ASOCIACIONES,),
+        )
+    )
+    fuente = _FuenteStub([convocatoria])
+    notificador = NotificadorStub()
+    cliente_ia = _ClienteIAStub(respuesta_defecto="no debería usarse")
+
+    resumen = ejecutar_pasada(
+        fuente,
+        almacen,
+        notificador,
+        HOY,
+        cliente_ia=cliente_ia,
+        generador_explicacion=_GeneradorExplicacionQueLanza(),
+        max_llamadas_ia=25,
+        generador_ids=_ids(),
+        reloj=_reloj,
+    )
+
+    assert resumen.fallos_ia_inesperados == 1
+    assert resumen.propuestas_nuevas == 1
+    matches = almacen.listar_matches_por_entidad("ent-1")
+    assert matches[0].explicacion_ia is None
+
+
 def test_sin_cliente_ia_la_pasada_completa_sin_ia():
     almacen = AlmacenMemoria()
     almacen.guardar_entidad(_entidad())

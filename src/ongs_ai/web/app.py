@@ -106,9 +106,24 @@ def _app_produccion() -> FastAPI | None:
     nadie lo haya pedido — los tests nunca dependen del .env de la máquina
     (CLAUDE.md). En despliegue real, el operador define `ONGS_AI_SECRET_KEY`
     (y el resto de variables `ONGS_AI_SMTP_*`/`ONGS_AI_APP_BASE_URL`) antes de
-    arrancar uvicorn."""
+    arrancar uvicorn.
+
+    Guardarraíl de arranque (A6, fallo real del operador -- dos veces): con
+    `ONGS_AI_SECRET_KEY` puesta pero `ONGS_AI_ENV=test` colgando de una
+    sesión anterior, `crear_almacen()` (factory) montaría un `AlmacenMemoria`
+    VACÍO para un servidor que se cree en producción -- todo enlace mágico
+    daría 400 porque la entidad/token que sembró otro proceso nunca llegó a
+    esta base. Un servidor "real" con almacén de memoria es siempre un error
+    del operador, jamás una intención; se aborta con mensaje accionable en
+    vez de arrancar en un estado que solo confunde."""
     if "ONGS_AI_SECRET_KEY" not in os.environ:
         return None
+    if os.environ.get("ONGS_AI_ENV") == "test":
+        raise RuntimeError(
+            "ONGS_AI_ENV=test detectado: el servidor real usaría un almacén de "
+            "MEMORIA vacío y todos los enlaces darían 400. Ejecuta "
+            "`set ONGS_AI_ENV=` y relanza."
+        )
     return crear_app()
 
 

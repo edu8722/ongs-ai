@@ -7,6 +7,29 @@
 
 ## Semana 2026-07-20/26
 
+- **PROMPT-021 — consola con diseño del prototipo + demo de un comando + fix del
+  enlace** (Sonnet) — **HECHO 7f3e73f, APROBADO (auditoría del arquitecto contra el
+  repo real), 331 tests. RESPUESTA AL FEEDBACK DURO DEL OPERADOR (3 demos
+  decepcionantes).** (A) sistema visual del prototipo extraído a
+  web/estaticos/consola.css, StaticFiles montado SOLO en /consola/estaticos; 5
+  vistas Jinja cableadas a los servicios auditados (resumen+oportunidades,
+  convocatorias con filtros, entidades unificada, cruce motivo a motivo con
+  score-ring e importe-rango, mapa Leaflet/CDN por centroide de CCAA — excepción
+  consciente, degrada limpio sin red, jamás inventa direcciones). (B)
+  scripts/preparar_demo.py sustituye a los dos scripts desechables SIN TESTS del
+  arquitecto (vector del fallo — nunca trackeados); orquestación preparar_demo()
+  con 9 tests (idempotencia entidad/prospectos, ingesta condicional por umbral,
+  degradación limpia); docs/DEMO.md camino único de 4 pasos. (C) el 400 del enlace:
+  reproducción literal del camino funcionaba bien invocada; el bug REAL de la clase
+  sospechada quedó probado — expira_en comparado como texto ISO crudo rompe el
+  orden lexicográfico con offset no-UTC (23:00+02:00 > 22:00+00:00 como texto
+  siendo ANTERIOR en UTC) o naive; fix = _normalizar_utc en la frontera de AMBOS
+  almacenes, con test en rojo pre-fix + test de integración fichero-SQLite
+  (siembra→app separada→303→panel→reuso 400) + cp1252 ("≥" crasheaba el print en
+  Windows) cazado en la verificación de cierre. Observaciones no bloqueantes del
+  arquitecto: teléfono público ABAIMAR ahora en git (decisión pendiente), POSTs de
+  consola sin CSRF (backlog), coste del dashboard con 511 prospectos (medir).
+
 - **PROMPT-020 — F-consola.1: consola del operador + prospectos + scoring** (Sonnet)
   — **HECHO f870150, APROBADO (auditoría del arquitecto), 308 tests. F-consola.1
   CERRADA.** `prospeccion/` (Prospecto + puerto + importador puro, verificado contra

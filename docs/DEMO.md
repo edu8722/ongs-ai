@@ -12,7 +12,15 @@ set ONGS_AI_SMTP_HOST=localhost
 set ONGS_AI_SMTP_REMITENTE=demo@localhost
 set ONGS_AI_APP_BASE_URL=http://localhost:8001
 set PYTHONPATH=src
+set ONGS_AI_ENV=
+set PYTHONUTF8=1
 ```
+
+`PYTHONUTF8=1`: la salida del CLI de Claude es UTF-8 y la consola de Windows
+(cp1252) rompe con acentos si no se fuerza. `ONGS_AI_ENV=` (vacío): si quedó
+`test` de una sesión anterior, el servidor real arrancaría con un almacén de
+MEMORIA vacío y todos los enlaces darían 400 (el guardarraíl de arranque
+aborta si lo detecta — ver paso 3).
 
 El servidor (paso 3) exige `ONGS_AI_SMTP_HOST`/`ONGS_AI_SMTP_REMITENTE`/
 `ONGS_AI_APP_BASE_URL` para arrancar aunque no llegues a enviar ningún email
@@ -44,6 +52,8 @@ python -m uvicorn ongs_ai.web.app:app --reload --port 8001
 ## 4. Abrir las URLs impresas por el paso 2
 
 - Panel de la entidad demo (enlace de un solo uso): `http://localhost:8001/login/confirmar?token=...`
+  — abre una página con el botón "Entrar en tu panel"; el enlace en sí no
+  consume nada (solo el clic), así que abrirlo varias veces no lo gasta.
 - Consola del operador: `http://localhost:8001/consola` (pide la clave de `ONGS_AI_OPERADOR_CLAVE`)
 
 Si el enlace del panel ya se usó (un solo uso) o caducó (12 h), vuelve a

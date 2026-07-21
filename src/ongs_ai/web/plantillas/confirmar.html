@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block titulo %}Confirmar acceso — ONGs-AI{% endblock %}
+{% block contenido %}
+<h1>Entrar en tu panel</h1>
+<p>Pulsa el botón para confirmar el acceso a tu panel.</p>
+<form method="post" action="/login/confirmar">
+  <input type="hidden" name="token" value="{{ token }}">
+  <button type="submit">Entrar en tu panel</button>
+</form>
+{% endblock %}

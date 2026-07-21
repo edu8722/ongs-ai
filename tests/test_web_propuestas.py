@@ -73,7 +73,7 @@ def _cliente_logueado(almacen: AlmacenMemoria, entidad: Entidad) -> TestClient:
     client = TestClient(app)
     client.post("/login", data={"email": entidad.contacto.email})
     token = enviador.enlaces[0].token
-    client.get(f"/login/confirmar?token={token}")
+    client.post("/login/confirmar", data={"token": token})
     return client
 
 

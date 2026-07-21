@@ -136,6 +136,32 @@ def test_sin_env_ni_binario_explicito_usa_claude_por_defecto(monkeypatch):
     assert ejecutor.comandos[0][0] == "claude"
 
 
+def test_stdout_none_degrada_limpio_sin_lanzar_typeerror():
+    """Fail-first (PROMPT-022 A2): reproduce el fallo real del operador —
+    hilo lector de subprocess muerto deja stdout=None pese al tipo `str`
+    declarado en `ResultadoProceso`; antes del fix, `json.loads(None)`
+    lanzaba `TypeError` que escapaba de `preguntar` hacia el dominio."""
+    ejecutor = _EjecutorStub(ResultadoProceso(codigo_salida=0, stdout=None, stderr=None))
+    cliente = ClienteClaudeCLI(ejecutor=ejecutor)
+
+    assert cliente.preguntar("hola") is None
+    assert cliente.fallos == 1
+
+
+def test_ejecutor_que_lanza_unicodedecodeerror_degrada_limpio():
+    """Fail-first (PROMPT-022 A1/A2): reproduce el fallo real del operador en
+    Windows — el ejecutor de subproceso lanzaba `UnicodeDecodeError` al
+    decodificar la salida del CLI con el locale (cp1252) en vez de UTF-8;
+    antes del fix, ese `except` no cubría `UnicodeDecodeError` y la excepción
+    tumbaba la pasada de ingesta completa."""
+    excepcion = UnicodeDecodeError("charmap", b"\x8d", 0, 1, "byte inválido")
+    ejecutor = _EjecutorStub(excepcion=excepcion)
+    cliente = ClienteClaudeCLI(ejecutor=ejecutor)
+
+    assert cliente.preguntar("hola") is None
+    assert cliente.fallos == 1
+
+
 def test_cada_llamada_incrementa_el_contador_de_llamadas():
     ejecutor = _EjecutorStub(ResultadoProceso(codigo_salida=0, stdout=_json_exitoso("ok"), stderr=""))
     cliente = ClienteClaudeCLI(ejecutor=ejecutor)

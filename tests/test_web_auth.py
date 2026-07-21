@@ -89,7 +89,13 @@ def test_login_feliz_completo():
     assert len(enviador.enlaces) == 1
     token = enviador.enlaces[0].token
 
-    resp_confirmar = client.get(f"/login/confirmar?token={token}", follow_redirects=False)
+    # B1: el GET ya NO consume -- devuelve 200 con la página de confirmación.
+    resp_get = client.get(f"/login/confirmar?token={token}")
+    assert resp_get.status_code == 200
+    assert token in resp_get.text
+
+    # B2: el consumo atómico vive en el POST.
+    resp_confirmar = client.post("/login/confirmar", data={"token": token}, follow_redirects=False)
     assert resp_confirmar.status_code == 303
     assert resp_confirmar.headers["location"] == "/panel"
 
@@ -114,7 +120,9 @@ def test_login_feliz_completo_con_almacen_sqlite():
         assert len(enviador.enlaces) == 1
         token = enviador.enlaces[0].token
 
-        resp_confirmar = client.get(f"/login/confirmar?token={token}", follow_redirects=False)
+        resp_confirmar = client.post(
+            "/login/confirmar", data={"token": token}, follow_redirects=False
+        )
         assert resp_confirmar.status_code == 303
         assert resp_confirmar.headers["location"] == "/panel"
 
@@ -123,6 +131,27 @@ def test_login_feliz_completo_con_almacen_sqlite():
         assert entidad.nombre_legal in resp_panel.text
     finally:
         almacen.cerrar()
+
+
+def test_get_confirmar_repetido_no_consume_el_token():
+    """Fail-first (fallo real del operador): antes del fix, un prefetcher que
+    hace GET repetidas veces consumía el enlace de un solo uso antes de que
+    el usuario llegara a navegar -- su pestaña veía "enlace no válido"
+    mientras el token aparecía ya usado en la base. Ahora el GET, se repita
+    las veces que se repita, nunca toca el almacén; solo el POST consume."""
+    client, almacen, enviador, _reloj = _cliente()
+    entidad = _entidad()
+    almacen.guardar_entidad(entidad)
+    client.post("/login", data={"email": entidad.contacto.email})
+    token = enviador.enlaces[0].token
+
+    for _ in range(5):
+        resp = client.get(f"/login/confirmar?token={token}")
+        assert resp.status_code == 200
+
+    resp_post = client.post("/login/confirmar", data={"token": token}, follow_redirects=False)
+    assert resp_post.status_code == 303
+    assert resp_post.headers["location"] == "/panel"
 
 
 def test_email_inexistente_misma_respuesta_y_cero_envios():
@@ -149,12 +178,12 @@ def test_token_ya_usado_falla_sin_sesion():
     client.post("/login", data={"email": entidad.contacto.email})
     token = enviador.enlaces[0].token
 
-    client.get(f"/login/confirmar?token={token}")  # primer uso: consumido, sesión creada
+    client.post("/login/confirmar", data={"token": token})  # primer uso: consumido, sesión creada
 
     # Segundo intento con el MISMO enlace, desde un cliente sin sesión previa
     # (p. ej. el destinatario reenvía/reabre el correo en otro navegador).
     otro_cliente = TestClient(client.app)
-    resp = otro_cliente.get(f"/login/confirmar?token={token}", follow_redirects=False)
+    resp = otro_cliente.post("/login/confirmar", data={"token": token}, follow_redirects=False)
 
     assert resp.status_code == 400
 
@@ -172,7 +201,7 @@ def test_token_caducado_falla():
     token = enviador.enlaces[0].token
 
     reloj.ahora = T0 + timedelta(minutes=61)  # TTL por defecto = 60 minutos
-    resp = client.get(f"/login/confirmar?token={token}", follow_redirects=False)
+    resp = client.post("/login/confirmar", data={"token": token}, follow_redirects=False)
 
     assert resp.status_code == 400
 
@@ -184,7 +213,13 @@ def test_token_caducado_falla():
 def test_token_inventado_falla():
     client, _almacen, _enviador, _reloj = _cliente()
 
-    resp = client.get("/login/confirmar?token=token-que-nunca-existio")
+    # El GET nunca distingue -- siempre 200 con la misma página, exista o no.
+    resp_get = client.get("/login/confirmar?token=token-que-nunca-existio")
+    assert resp_get.status_code == 200
+
+    resp = client.post(
+        "/login/confirmar", data={"token": "token-que-nunca-existio"}, follow_redirects=False
+    )
 
     assert resp.status_code == 400
 
@@ -208,7 +243,7 @@ def test_logout_invalida_sesion():
     almacen.guardar_entidad(entidad)
     client.post("/login", data={"email": entidad.contacto.email})
     token = enviador.enlaces[0].token
-    client.get(f"/login/confirmar?token={token}")
+    client.post("/login/confirmar", data={"token": token})
     assert client.get("/panel").status_code == 200
 
     resp_logout = client.post("/logout", follow_redirects=False)
