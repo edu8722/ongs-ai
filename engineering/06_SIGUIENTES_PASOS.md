@@ -70,14 +70,18 @@ siguiente acción según este documento.
 
 ## ESTADO VIVO
 
-- **2026-07-21 — F-web.1 CERRADA Y AUDITADA: APROBADO, HECHO 06418f3, 214 tests,
-  pushed. LA APP EXISTE:** login por magic link + panel por tenant, aislamiento por
-  construcción verificado a nivel HTTP. Primeras deps runtime instaladas (versiones
-  exactas en histórico). Variables de entorno requeridas en producción:
-  ONGS_AI_SECRET_KEY, ONGS_AI_APP_BASE_URL, ONGS_AI_SMTP_*. Detalle → histórico.
+- **2026-07-21 — F-web.2 CERRADA Y AUDITADA: APROBADO, HECHO 455de38, 220 tests,
+  pushed. LA APP ESTÁ COMPLETA PARA DEMO:** login magic link, panel por tenant y
+  acciones aceptar/descartar con CSRF y propiedad de match a prueba de ajenos.
+  OJO: la sesión ejecutó el prompt SIN los remates del arquitecto (llegaron tarde) →
+  empaquetado y comando python -m/--port 8001 reencolados como **PROMPT-016**.
+  El arquitecto entregó `scripts/demo_semilla_local.py` (DESECHABLE, no commitear):
+  siembra entidad+convocatorias+matches en var/ y genera magic link sin SMTP.
   **Estado de fases: F1 ✔ · ADR-002 ✔ · F3 ✔ · F2+fix ✔ · F4.1 ✔ · F4.2 ✔ ·
-  utilidades ✔ · ADR-005 ✔ · F-web.1 ✔ · SIGUIENTE: PROMPT-015 (F-web.2:
-  aceptar/descartar + CSRF + comando servidor en CLAUDE.md) · Después: F5.**
+  utilidades ✔ · ADR-005 ✔ · F-web.1 ✔ · F-web.2 ✔ · SIGUIENTE: PROMPT-016
+  (empaquetado+comando) · Después: F5 (último tramo del plan).**
+- F-web.1 (06418f3, 214 t) cerrada — detalle en histórico. Variables producción:
+  ONGS_AI_SECRET_KEY, ONGS_AI_APP_BASE_URL, ONGS_AI_SMTP_*.
 - ADR-005 (a4c80ab) aceptado con decisiones del operador: sesión 30 días · enlace
   1 h · hosting/TLS al captar piloto. PROMPT-012 (6457682): scraper FEDER, techo
   ~272/476; **maestro de prospección v3 = 511 entidades** (fuera de git). Histórico.
@@ -91,24 +95,20 @@ siguiente acción según este documento.
   reales mapeadas de punta a punta; campos confirmados; dinero en céntimos int;
   nominativas sin plazo quedan `extraida` (guardarraíl OK). Pendiente menor: el
   parámetro `tipoBeneficiario` aún sin ejercer con filtro real.
-- **ADR-004 (2026-07-19) rige F4** — decisiones del operador: persistir todo match
-  dentro de un catálogo relevante (pre-puerta), elegibilidad sobrevenida = avisar
-  como nueva propuesta. Email solo elegibles; panel muestra todo. Email real y read
-  model → F4.2 (en cola). UI del panel → esqueleto app (backlog).
-- **Investigaciones:** R1 entregada y commiteada (`investigacion/R1_*` — BDNS como
-  fuente única del sector público, verificado 3-0). **R2 consolidada en
-  `asociaciones_EERR_directorio_v2.xlsx` (2026-07-21): 364 entidades** (maestro
-  anterior + 96 del listado web de FEDER, 29 nuevas tras dedupe por nombre y email;
-  candidatas a piloto señaladas en el informe: GERNA, PERA, ARER, ASERCA, ABAIMAR,
-  red ASEM). Techo de la vía web: el conversor corta el HTML largo de FEDER
-  (~96/476) → la extracción COMPLETA va por script con red real en la máquina del
-  operador = **PROMPT-012 en cola**. Enriquecimiento con personas visibles: SOLO
-  sobre las asociaciones que se vayan a contactar (decisión del operador vigente).
-  ⚠ Dato personal: fuera de git, responsable = operador, no difundir.
+- **Investigaciones:** R1 commiteada (BDNS = fuente única del sector público,
+  verificado 3-0). R2: **maestro de prospección v3 = 511 entidades** (fuera de git;
+  candidatas a piloto: GERNA, PERA, ARER, ASERCA, ABAIMAR, red ASEM). Enriquecer
+  personas visibles SOLO de las que se vayan a contactar. Censo FEDER completo:
+  pedirlo a FEDER cuando haya relación (~204 entidades no salen por web).
 - **Lección del ritual** (4 casos): resúmenes/acciones de sesiones exceden lo real —
   mensaje de commit (P-002), "decisión conservadora" que rompía el puerto (P-004),
   auto-cierre "APROBADO" (P-006), y pizarra pisada por el mount (2026-07-21).
   Auditar SIEMPRE el artefacto real; veredicto solo del arquitecto; pizarra desde git.
+- **Lección de verificación humana (2026-07-21):** la demo del operador en navegador
+  real cazó un bug de producción invisible para 220 tests herméticos (SQLite
+  monohilo vs threadpool de FastAPI — la web solo se testeaba con AlmacenMemoria).
+  Confirma la regla del kit: el operador verifica en navegador/dispositivo real lo
+  que las sesiones no pueden. Fix + test de integración SQLite-por-HTTP en PROMPT-016.
 - **Duele:** sigue SIN ENTIDAD PILOTO (hay candidatas con contacto en R2 — falta
   decidir y contactar; el arquitecto ofrece redactar el mensaje). Anti-hardcoding
   sigue siendo canario débil. Sin `municipio` → ámbito LOCAL no evaluable (ADR si
@@ -120,7 +120,7 @@ siguiente acción según este documento.
 
 ### ➤ PROMPTS PENDIENTES — todos aquí, listos para copiar (se vacían al cerrarse)
 
-#### PROMPT-011 — F4.2: adapter de email real + read model del panel · MODELO: Sonnet · ORDEN: 1º (nada en paralelo)
+#### PROMPT-016 — Empaquetado instalable + comando canónico de esta máquina · MODELO: Sonnet · ORDEN: 1º (corto)
 
 ```
 POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda
@@ -137,114 +137,43 @@ arquitecto: no cierres items, no te declares APROBADO, no muevas nada al
 histórico — limítate a incluir en tu commit los cambios de
 engineering/06_* que ya estén en el working tree, tal cual estén.
 
-TAREA: F4.2 del ADR-004 (léelo: engineering/ADR-004-persistencia-matches-
-y-aviso-proactivo.md, §6) — el aviso por email real y el modelo de lectura
-que alimentará el panel. NO toques el contrato ni la máquina de estados.
+TAREA: un BUG de producción cazado por el operador en navegador real +
+dejar el proyecto instalable y fijar el comando canónico de esta máquina.
 
-1. Adapter de email — `src/ongs_ai/adapters/avisos/email_smtp.py`
-   (+ `__init__.py`): implementación del Protocol `Notificador`
-   (servicios/notificacion.py) sobre SMTP estándar (smtplib de stdlib,
-   STARTTLS). TODA la configuración llega por parámetros/objeto de config
-   (host, puerto, credenciales, remitente) leída de variables de entorno
-   SOLO en la factory de composición — jamás en el adapter, jamás
-   hardcodeada, jamás en git (.env ya está gitignorado). Destinatario:
-   `entidad.contacto.email`; si la entidad no tiene email, degrada limpio
-   (log + contador, sin excepción). Contenido del aviso: asunto y cuerpo
-   de TEXTO PLANO con objeto de la convocatoria, portal, fecha_cierre,
-   cuantías si existen y la explicacion_ia si el match la lleva — sin
-   datos internos (ids de sistema, costes) — plantilla como función pura
-   testeable aparte del envío.
-2. En tests NUNCA se abre un socket: el cliente SMTP se INYECTA (factory
-   por entorno como en persistencia); stub que registra los envíos.
-   Testea: plantilla (contenido correcto, sin campos internos), envío
-   feliz, entidad sin email → degrada limpio, SMTP que lanza → degrada
-   limpio sin romper la pasada (mismo patrón try/except de F4.1).
-3. Read model del panel — `src/ongs_ai/servicios/panel.py`: consultas de
-   SOLO LECTURA sobre el puerto de matches, POR ENTIDAD (aislamiento por
-   tenant, jamás cross-tenant): `resumen_panel(entidad_id, almacen)` →
-   listas de matches agrupadas por estado (propuestas pendientes,
-   en_preparacion, presentadas, descartadas, detectadas no elegibles con
-   su motivo) ordenadas por fecha del último asiento. Pura composición de
-   lo existente; si necesitas una consulta nueva en el puerto, añade lo
-   MÍNIMO y cúmplelo en ambos adapters con test de contrato parametrizado.
-   El test anti-fuga cross-tenant DEBE cubrir el read model (entidad A no
-   ve nada de B).
-4. `scripts/smoke_email.py`: script MANUAL fuera de CI (documenta que hace
-   red) que envía UN email de prueba leyendo config del entorno — lo
-   ejecutará el operador cuando tenga credenciales SMTP; el prompt NO
-   necesita credenciales para cerrarse (los tests van con stub).
-5. `python -m pytest -q` VERDE, herméticos. Incluye los cambios de
-   `engineering/06_*` del working tree tal cual (cierre de F4.1 por el
+0. BUG SQLITE MULTIHILO (traza real del operador, 2026-07-21):
+   `sqlite3.ProgrammingError: SQLite objects created in a thread can only
+   be used in that same thread` — la conexión de `AlmacenSQLite` se crea
+   en el hilo de arranque y FastAPI ejecuta las rutas sync en un
+   threadpool. Arreglo conservador en
+   `adapters/persistencia/sqlite.py`: `sqlite3.connect(...,
+   check_same_thread=False)` + un `threading.Lock` propio del almacén que
+   serializa TODA operación (execute/commit) — documenta que SQLite ya
+   serializa escrituras y el volumen v1 es mínimo; no inventes pooling.
+   Tests de regresión: (a) test hermético que usa `AlmacenSQLite(':memory:')`
+   desde un `threading.Thread` distinto al creador (reproduce el bug tal
+   cual); (b) UN test de integración HTTP con TestClient donde el almacén
+   inyectado sea `AlmacenSQLite(':memory:')` en vez de memoria — cubre el
+   hueco que dejó pasar esto (la capa web solo se probaba con
+   AlmacenMemoria).
+
+Contexto adicional verificado por el operador: uvicorn fallaba con
+ModuleNotFoundError (solo pytest resuelve `src` vía pythonpath) y el
+puerto 8000 lo ocupa otro proyecto.
+
+1. EMPAQUETADO — pendiente desde F1: configura pyproject.toml para el
+   src-layout ([tool.setuptools] / packages) de modo que `pip install -e .`
+   funcione. Ejecútalo y verifica `python -c "import ongs_ai"` desde una
+   consola SIN PYTHONPATH y fuera de pytest. Documenta lo elegido.
+2. CLAUDE.md — sección Comandos: deja el comando de servidor como
+   `python -m uvicorn ongs_ai.web.app:app --reload --port 8001` (SIEMPRE
+   `python -m`, como pytest; 8001 porque el 8000 está ocupado en esta
+   máquina), añadiendo "requiere `pip install -e .` una vez". NADA MÁS.
+3. `.gitignore`: añade `scripts/demo_semilla_local.py` (utilidad DESECHABLE
+   del arquitecto para la demo local — no se commitea; verifica con
+   git check-ignore).
+4. `python -m pytest -q` VERDE con el nº REAL de tests. Incluye
+   engineering/06_* del working tree tal cual (cierre de F-web.2 por el
    arquitecto).
-
-Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
-`git status` antes del add, `git push` al terminar.
-```
-
-#### PROMPT-015 — F-web.2: aceptar/descartar con CSRF + comando de servidor en CLAUDE.md · MODELO: Sonnet · ORDEN: 1º (nada en paralelo)
-
-```
-POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda
-de implementación, elige la opción más conservadora/reversible y DOCUMENTA
-la decisión en el resumen final; ante ambigüedad de alcance, implementa lo
-literal del prompt y anota lo que dejaste fuera; jamás inventes datos ni
-mediciones (si necesitas un dato que no tienes, esa sí es pregunta
-legítima); las preguntas no bloqueantes van AGRUPADAS al final del
-trabajo, no en medio. Reglas de oro de CLAUDE.md por encima de todo — si
-el prompt y CLAUDE.md chocan, gana CLAUDE.md y me lo señalas. Antes de
-tocar un fichero grande, Grep al símbolo y lee el rango — nunca el
-fichero entero. La pizarra (engineering/06_*) la mantiene SOLO el
-arquitecto: no cierres items, no te declares APROBADO, no muevas nada al
-histórico — limítate a incluir en tu commit los cambios de
-engineering/06_* que ya estén en el working tree, tal cual estén.
-
-TAREA: F-web.2 del ADR-005 (§6, orientación) — las acciones
-aceptar/descartar de una propuesta desde el panel, con CSRF, más fijar el
-comando de servidor en CLAUDE.md. NO toques el contrato ni la máquina de
-estados (solo LLAMAS a `transicionar`, jamás la modificas).
-
-1. CSRF — token de formulario firmado ligado a la sesión (usa
-   itsdangerous, ya presente; o token aleatorio guardado en sesión y
-   comparado en constante). Helper en `web/dependencias.py` + inclusión en
-   las plantillas como campo oculto. TODO POST que mute estado de negocio
-   lo exige; POST sin token o con token inválido → 403 genérico.
-
-2. Rutas — `web/rutas/propuestas.py` (módulo NUEVO; `app.py` solo gana su
-   include_router):
-   - `POST /panel/propuestas/aceptar` y `POST /panel/propuestas/descartar`
-     con `entidad = Depends(entidad_actual)`, `match_id` como campo de
-     formulario y token CSRF.
-   - PROPIEDAD DEL MATCH — crítico: resuelve el match EXCLUSIVAMENTE
-     buscando `match_id` dentro de
-     `almacen.listar_matches_por_entidad(entidad.entidad_id)` — JAMÁS un
-     acceso global por match_id. Si no está ahí (no existe O es de otra
-     entidad): 404 con página genérica — la MISMA respuesta en ambos casos
-     (no confirmes a un atacante que el id existe).
-   - Transición: `transicionar(match, a_estado=ACEPTADA|DESCARTADA,
-     actor=ActorAsiento.ENTIDAD, motivo="aceptada|descartada por la entidad
-     desde el panel", ids/reloj inyectados vía app.state como en F4)`. Una
-     transición ilegal (p. ej. aceptar algo ya descartado — doble submit)
-     NO revienta: captura TransicionIlegalError → redirect a /panel con
-     mensaje neutro. `guardar_match` y redirect 303 a /panel.
-   - En `panel.html`: botones Aceptar/Descartar SOLO en el cubo
-     propuestas_pendientes (formularios POST con CSRF; nada de enlaces GET
-     que muten estado).
-
-3. CLAUDE.md — sección "Comandos": sustituye la línea "Servidor local:
-   PENDIENTE…" por `uvicorn ongs_ai.web.app:app --reload` y añade una
-   línea con las variables de entorno requeridas para arrancar en real
-   (ONGS_AI_SECRET_KEY, ONGS_AI_APP_BASE_URL, ONGS_AI_SMTP_*) señalando
-   que en tests todo va inyectado/stub. NADA MÁS de CLAUDE.md se toca.
-
-4. Tests (TestClient, herméticos): aceptar y descartar felices (el match
-   cambia de cubo tras el redirect); POST sin CSRF → 403; match de OTRA
-   entidad → 404 idéntico al inexistente (anti-fuga de existencia); doble
-   submit/transición ilegal → redirect con mensaje neutro, sin 500 y sin
-   asiento nuevo; los GET siguen sin mutar nada; suite completa VERDE.
-
-5. Chequeo sintáctico de cada .py tocado. `python -m pytest -q` VERDE con
-   el nº REAL de tests. Incluye engineering/06_* del working tree tal cual
-   (cierre de F-web.1 por el arquitecto).
 
 Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
 `git status` antes del add, `git push` al terminar.
@@ -252,11 +181,11 @@ Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
 
 ### Bandeja del OPERADOR
 
-- **VER LA APP (5 min, ya puedes):** en tu terminal —
-  `set ONGS_AI_ENV=test && set ONGS_AI_SECRET_KEY=prueba-local && uvicorn ongs_ai.web.app:app --reload`
-  y abre http://localhost:8000/login — primera verificación visual del producto.
-  (Con ONGS_AI_ENV=test usa almacén en memoria y SMTP stub: el enlace no llega por
-  correo real, saldrá en consola/log — suficiente para verla.)
+- **VER LA APP (5 min):** `cd C:\dev\ongs-ai` → `set ONGS_AI_ENV=test` →
+  `set ONGS_AI_SECRET_KEY=prueba-local` → `set PYTHONPATH=src` →
+  `python -m uvicorn ongs_ai.web.app:app --reload --port 8001` → abrir
+  http://localhost:8001/login. (Modo test: memoria + SMTP stub, el enlace sale en la
+  consola. PYTHONPATH temporal hasta que PROMPT-015 arregle el empaquetado.)
 - Pegar PROMPT-015 (F-web.2, Sonnet) en Claude Code y avisar para auditoría.
 - `python scripts/smoke_email.py` cuando tengas buzón/credenciales SMTP (variables
   ONGS_AI_SMTP_*) — verifica el aviso por email real. Puede esperar.
@@ -285,7 +214,10 @@ Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
 
 ### Recordatorios operativos
 
-- Máquina Windows: `python -m pytest -q`; rutas `C:\dev\ongs-ai`.
+- Máquina Windows: SIEMPRE `python -m ...` (pytest, uvicorn — los .exe de Scripts no
+  están en PATH); rutas `C:\dev\ongs-ai`. **Puerto 8000 OCUPADO por otro proyecto →
+  ONGs-AI usa el 8001.** Hasta que PROMPT-015 arregle el empaquetado: `set
+  PYTHONPATH=src` antes de arrancar uvicorn (pytest no lo necesita).
 - Mount sandbox↔host: ver regla del traspaso (git = verdad de la pizarra).
 - JSONs/salidas grandes siempre como archivo, jamás pegadas al chat.
 - `investigacion/asociaciones*` JAMÁS a git (datos personales; gitignorado).

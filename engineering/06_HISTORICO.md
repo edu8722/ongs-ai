@@ -2,6 +2,18 @@
 
 ## Semana 2026-07-20/26
 
+- **PROMPT-015 — F-web.2: aceptar/descartar con CSRF + comando servidor** (Sonnet) —
+  **HECHO 455de38, APROBADO (auditoría del arquitecto), 220 tests. F-web.2 CERRADA.**
+  CSRF por token de sesión con comparación en tiempo constante (desviación aprobada:
+  sin itsdangerous — la cookie ya va firmada); rutas/propuestas.py con propiedad del
+  match resuelta SOLO dentro de listar_matches_por_entidad (ajeno = inexistente =
+  mismo 404); TransicionIlegalError (doble submit) → redirect neutro sin asiento;
+  botones solo en propuestas_pendientes; ajuste legítimo de 2 tests (el match_id
+  PROPIO va en campo oculto del formulario; se mantiene la garantía: jamás ids
+  ajenos). CLAUDE.md ganó el comando de servidor — PERO la sesión ejecutó la versión
+  del prompt ANTERIOR a los remates del arquitecto: empaquetado (pip install -e .) y
+  comando con python -m/--port 8001 quedaron fuera → reencolados como PROMPT-016.
+
 - **PROMPT-014 — F-web.1: esqueleto web + auth magic link + panel** (Sonnet) —
   **HECHO 06418f3, APROBADO (auditoría del arquitecto), 214 tests. F-web.1 CERRADA.**
   Deps runtime primeras (fastapi 0.139.0, uvicorn 0.49.0, jinja2 3.1.6, itsdangerous
