@@ -2,6 +2,18 @@
 
 ## Semana 2026-07-20/26
 
+- **PROMPT-016 — Empaquetado instalable + comando canónico** (Sonnet) — **HECHO
+  8ebfb1d, APROBADO (auditoría del arquitecto), 220 tests.**
+  `[tool.setuptools.packages.find] where=["src"]`; `pip install -e .` verificado
+  (import fuera de pytest y sin PYTHONPATH); CLAUDE.md con `python -m uvicorn ...
+  --port 8001`; demo_semilla_local.py y `*.egg-info/` gitignorados (la segunda,
+  iniciativa estándar de la sesión, aprobada). NOTA DE PROCESO (2ª vez): la sesión
+  ejecutó la versión del prompt ANTERIOR al último remate del arquitecto — el fix
+  del bug SQLite multihilo NO se hizo (sqlite.py sin tocar, verificado) → reencolado
+  como PROMPT-017. Regla nueva en recordatorios: copiar el prompt del 06 ACTUAL
+  (tras el último aviso del arquitecto), no de un buffer viejo. El "puerto 8001
+  ocupado" que reportó la sesión era el PROPIO uvicorn del operador aún corriendo.
+
 - **PROMPT-015 — F-web.2: aceptar/descartar con CSRF + comando servidor** (Sonnet) —
   **HECHO 455de38, APROBADO (auditoría del arquitecto), 220 tests. F-web.2 CERRADA.**
   CSRF por token de sesión con comparación en tiempo constante (desviación aprobada:

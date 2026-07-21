@@ -70,16 +70,16 @@ siguiente acción según este documento.
 
 ## ESTADO VIVO
 
-- **2026-07-21 — F-web.2 CERRADA Y AUDITADA: APROBADO, HECHO 455de38, 220 tests,
-  pushed. LA APP ESTÁ COMPLETA PARA DEMO:** login magic link, panel por tenant y
-  acciones aceptar/descartar con CSRF y propiedad de match a prueba de ajenos.
-  OJO: la sesión ejecutó el prompt SIN los remates del arquitecto (llegaron tarde) →
-  empaquetado y comando python -m/--port 8001 reencolados como **PROMPT-016**.
-  El arquitecto entregó `scripts/demo_semilla_local.py` (DESECHABLE, no commitear):
-  siembra entidad+convocatorias+matches en var/ y genera magic link sin SMTP.
-  **Estado de fases: F1 ✔ · ADR-002 ✔ · F3 ✔ · F2+fix ✔ · F4.1 ✔ · F4.2 ✔ ·
-  utilidades ✔ · ADR-005 ✔ · F-web.1 ✔ · F-web.2 ✔ · SIGUIENTE: PROMPT-016
-  (empaquetado+comando) · Después: F5 (último tramo del plan).**
+- **2026-07-21 — PROMPT-016 CERRADO (HECHO 8ebfb1d, APROBADO, 220 tests):** proyecto
+  instalable (`pip install -e .`, ya sin PYTHONPATH), comando canónico en CLAUDE.md
+  (`python -m uvicorn ... --port 8001`), demo y egg-info gitignorados. PERO (2ª vez)
+  la sesión ejecutó el prompt SIN el último remate → **el bug SQLite multihilo sigue
+  VIVO** (sqlite.py sin tocar, verificado) → **PROMPT-017 en cola (solo el fix)**.
+  La demo del operador seguirá dando 500 hasta cerrarlo.
+- F-web.2 CERRADA (455de38, 220 t): aceptar/descartar con CSRF, propiedad de match
+  a prueba de ajenos. LA APP ESTÁ COMPLETA PARA DEMO (pendiente solo PROMPT-017).
+  **Fases: F1 ✔ · ADR-002 ✔ · F3 ✔ · F2+fix ✔ · F4 ✔ · ADR-005 ✔ · F-web.1 ✔ ·
+  F-web.2 ✔ · empaquetado ✔ · SIGUIENTE: PROMPT-017 (fix SQLite) · Después: F5.**
 - F-web.1 (06418f3, 214 t) cerrada — detalle en histórico. Variables producción:
   ONGS_AI_SECRET_KEY, ONGS_AI_APP_BASE_URL, ONGS_AI_SMTP_*.
 - ADR-005 (a4c80ab) aceptado con decisiones del operador: sesión 30 días · enlace
@@ -120,7 +120,7 @@ siguiente acción según este documento.
 
 ### ➤ PROMPTS PENDIENTES — todos aquí, listos para copiar (se vacían al cerrarse)
 
-#### PROMPT-016 — Empaquetado instalable + comando canónico de esta máquina · MODELO: Sonnet · ORDEN: 1º (corto)
+#### PROMPT-017 — Fix: SQLite multihilo bajo FastAPI · MODELO: Sonnet · ORDEN: 1º (corto)
 
 ```
 POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda
@@ -137,43 +137,25 @@ arquitecto: no cierres items, no te declares APROBADO, no muevas nada al
 histórico — limítate a incluir en tu commit los cambios de
 engineering/06_* que ya estén en el working tree, tal cual estén.
 
-TAREA: un BUG de producción cazado por el operador en navegador real +
-dejar el proyecto instalable y fijar el comando canónico de esta máquina.
+TAREA (corta y única): arreglar el bug de producción cazado por el
+operador en navegador real (traza del 2026-07-21):
+`sqlite3.ProgrammingError: SQLite objects created in a thread can only be
+used in that same thread` — la conexión de `AlmacenSQLite` se crea en el
+hilo de arranque y FastAPI ejecuta las rutas sync en un threadpool.
 
-0. BUG SQLITE MULTIHILO (traza real del operador, 2026-07-21):
-   `sqlite3.ProgrammingError: SQLite objects created in a thread can only
-   be used in that same thread` — la conexión de `AlmacenSQLite` se crea
-   en el hilo de arranque y FastAPI ejecuta las rutas sync en un
-   threadpool. Arreglo conservador en
-   `adapters/persistencia/sqlite.py`: `sqlite3.connect(...,
-   check_same_thread=False)` + un `threading.Lock` propio del almacén que
-   serializa TODA operación (execute/commit) — documenta que SQLite ya
-   serializa escrituras y el volumen v1 es mínimo; no inventes pooling.
-   Tests de regresión: (a) test hermético que usa `AlmacenSQLite(':memory:')`
+1. Arreglo conservador en `adapters/persistencia/sqlite.py`:
+   `sqlite3.connect(..., check_same_thread=False)` + un `threading.Lock`
+   propio del almacén que serializa TODA operación (execute/commit).
+   Documenta: SQLite ya serializa escrituras y el volumen v1 es mínimo;
+   nada de pooling ni conexiones por hilo.
+2. Tests de regresión: (a) hermético — `AlmacenSQLite(':memory:')` usado
    desde un `threading.Thread` distinto al creador (reproduce el bug tal
-   cual); (b) UN test de integración HTTP con TestClient donde el almacén
-   inyectado sea `AlmacenSQLite(':memory:')` en vez de memoria — cubre el
-   hueco que dejó pasar esto (la capa web solo se probaba con
-   AlmacenMemoria).
-
-Contexto adicional verificado por el operador: uvicorn fallaba con
-ModuleNotFoundError (solo pytest resuelve `src` vía pythonpath) y el
-puerto 8000 lo ocupa otro proyecto.
-
-1. EMPAQUETADO — pendiente desde F1: configura pyproject.toml para el
-   src-layout ([tool.setuptools] / packages) de modo que `pip install -e .`
-   funcione. Ejecútalo y verifica `python -c "import ongs_ai"` desde una
-   consola SIN PYTHONPATH y fuera de pytest. Documenta lo elegido.
-2. CLAUDE.md — sección Comandos: deja el comando de servidor como
-   `python -m uvicorn ongs_ai.web.app:app --reload --port 8001` (SIEMPRE
-   `python -m`, como pytest; 8001 porque el 8000 está ocupado en esta
-   máquina), añadiendo "requiere `pip install -e .` una vez". NADA MÁS.
-3. `.gitignore`: añade `scripts/demo_semilla_local.py` (utilidad DESECHABLE
-   del arquitecto para la demo local — no se commitea; verifica con
-   git check-ignore).
-4. `python -m pytest -q` VERDE con el nº REAL de tests. Incluye
-   engineering/06_* del working tree tal cual (cierre de F-web.2 por el
-   arquitecto).
+   cual); (b) integración HTTP — UN test con TestClient cuyo almacén
+   inyectado sea `AlmacenSQLite(':memory:')` en vez de AlmacenMemoria
+   (login+panel felices) — cubre el hueco que dejó pasar esto.
+3. `python -m pytest -q` VERDE con el nº REAL de tests. Incluye
+   engineering/06_* del working tree tal cual (cierre de PROMPT-016 por
+   el arquitecto).
 
 Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
 `git status` antes del add, `git push` al terminar.
@@ -186,7 +168,10 @@ Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
   `python -m uvicorn ongs_ai.web.app:app --reload --port 8001` → abrir
   http://localhost:8001/login. (Modo test: memoria + SMTP stub, el enlace sale en la
   consola. PYTHONPATH temporal hasta que PROMPT-015 arregle el empaquetado.)
-- Pegar PROMPT-015 (F-web.2, Sonnet) en Claude Code y avisar para auditoría.
+- Pegar PROMPT-017 (fix SQLite, Sonnet) — COPIA LA VERSION ACTUAL de este 06.
+  Al cerrarse: repetir la demo (semilla + servidor 8001 + enlace nuevo) — deberia
+  abrir el panel. Antes: cierra el uvicorn viejo que dejaste corriendo (el «8001 ocupado»
+  era tu propio servidor de la prueba anterior — Ctrl+C en su ventana).
 - `python scripts/smoke_email.py` cuando tengas buzón/credenciales SMTP (variables
   ONGS_AI_SMTP_*) — verifica el aviso por email real. Puede esperar.
 - Cuando haya relación con FEDER (p. ej. vía piloto): pedirles el censo completo de
@@ -213,6 +198,9 @@ Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
 - Modelo de negocio (entidades con pocos recursos) — conversación de producto.
 
 ### Recordatorios operativos
+
+- ANTES de pegar un prompt: copialo del 06 ACTUAL, tras el ultimo aviso del
+  arquitecto — dos prompts ya se ejecutaron en version vieja (015 y 016).
 
 - Máquina Windows: SIEMPRE `python -m ...` (pytest, uvicorn — los .exe de Scripts no
   están en PATH); rutas `C:\dev\ongs-ai`. **Puerto 8000 OCUPADO por otro proyecto →

@@ -11,6 +11,7 @@ from datetime import date, datetime, timedelta, timezone
 from fastapi.testclient import TestClient
 
 from ongs_ai.adapters.persistencia.memoria import AlmacenMemoria
+from ongs_ai.adapters.persistencia.sqlite import AlmacenSQLite
 from ongs_ai.dominio.entidades import (
     ActividadDeclarada,
     AmbitoTerritorial,
@@ -95,6 +96,33 @@ def test_login_feliz_completo():
     resp_panel = client.get("/panel")
     assert resp_panel.status_code == 200
     assert entidad.nombre_legal in resp_panel.text
+
+
+def test_login_feliz_completo_con_almacen_sqlite():
+    """Regresión (2026-07-21): TestClient ejecuta las rutas sync en un
+    threadpool -- un hilo distinto al que crea el almacén. Los demás tests de
+    este módulo usan AlmacenMemoria y no lo detectaron; este cubre el hueco
+    con el backend real (AlmacenSQLite en :memory:)."""
+    almacen = AlmacenSQLite(":memory:")
+    try:
+        client, _almacen, enviador, _reloj = _cliente(almacen=almacen)
+        entidad = _entidad()
+        almacen.guardar_entidad(entidad)
+
+        resp_login = client.post("/login", data={"email": entidad.contacto.email})
+        assert resp_login.status_code == 200
+        assert len(enviador.enlaces) == 1
+        token = enviador.enlaces[0].token
+
+        resp_confirmar = client.get(f"/login/confirmar?token={token}", follow_redirects=False)
+        assert resp_confirmar.status_code == 303
+        assert resp_confirmar.headers["location"] == "/panel"
+
+        resp_panel = client.get("/panel")
+        assert resp_panel.status_code == 200
+        assert entidad.nombre_legal in resp_panel.text
+    finally:
+        almacen.cerrar()
 
 
 def test_email_inexistente_misma_respuesta_y_cero_envios():

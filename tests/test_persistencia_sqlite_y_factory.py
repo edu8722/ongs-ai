@@ -1,5 +1,6 @@
 """Adapter SQLite y factory por entorno — herméticos: `:memory:`, nunca disco compartido."""
 import json
+import threading
 from datetime import date, datetime, timezone
 
 from ongs_ai.adapters.persistencia.factory import crear_almacen
@@ -71,6 +72,33 @@ def test_almacen_sqlite_en_memoria_filtra_matches_por_entidad():
         resultado = almacen.listar_matches_por_entidad("ent-A")
         assert len(resultado) == 1
         assert resultado[0] == match_a
+    finally:
+        almacen.cerrar()
+
+
+def test_almacen_sqlite_usable_desde_otro_hilo():
+    """Bug de producción cazado en navegador real (2026-07-21): la conexión se
+    crea en el hilo de arranque pero FastAPI ejecuta las rutas sync en un
+    threadpool (hilo distinto al creador) -> `sqlite3.ProgrammingError`.
+    Reproduce el acceso desde un hilo ajeno tal cual; con
+    check_same_thread=False + lock propio debe funcionar sin excepción."""
+    almacen = AlmacenSQLite(":memory:")
+    errores: list[Exception] = []
+
+    def _trabajo() -> None:
+        try:
+            entidad = _entidad()
+            almacen.guardar_entidad(entidad)
+            leida = almacen.obtener_entidad(entidad.entidad_id)
+            assert leida == entidad
+        except Exception as exc:  # pragma: no cover - solo si el bug reaparece
+            errores.append(exc)
+
+    try:
+        hilo = threading.Thread(target=_trabajo)
+        hilo.start()
+        hilo.join()
+        assert errores == []
     finally:
         almacen.cerrar()
 

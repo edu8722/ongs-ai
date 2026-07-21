@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import threading
 from dataclasses import asdict
 from datetime import date, datetime
 from enum import Enum
@@ -202,12 +203,19 @@ class AlmacenSQLite:
     """Implementa RepositorioEntidades + RepositorioConvocatorias + RepositorioMatches."""
 
     def __init__(self, ruta_db: str | Path = RUTA_DB_DEFECTO) -> None:
+        # FastAPI ejecuta las rutas sync en un threadpool (nunca el hilo que
+        # crea el almacén): check_same_thread=False + un lock propio que
+        # serializa TODA operación es el arreglo conservador — SQLite ya
+        # serializa escrituras internamente y el volumen v1 es mínimo; nada
+        # de pooling ni de una conexión por hilo.
+        self._lock = threading.Lock()
         self._ruta_db = Path(ruta_db) if str(ruta_db) != ":memory:" else ruta_db
         if isinstance(self._ruta_db, Path):
             self._ruta_db.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(self._ruta_db))
-        self._conn.execute("PRAGMA foreign_keys = ON")
-        self._migrar()
+        self._conn = sqlite3.connect(str(self._ruta_db), check_same_thread=False)
+        with self._lock:
+            self._conn.execute("PRAGMA foreign_keys = ON")
+            self._migrar()
         self.registros_omitidos_por_corrupcion = 0
         self.entidades_duplicadas_por_email = 0
 
@@ -261,7 +269,8 @@ class AlmacenSQLite:
         self._conn.commit()
 
     def cerrar(self) -> None:
-        self._conn.close()
+        with self._lock:
+            self._conn.close()
 
     def _decodificar(self, tipo_registro: str, identificador: str, constructor, datos: dict):
         try:
@@ -279,18 +288,20 @@ class AlmacenSQLite:
     # Entidades ------------------------------------------------------
     def guardar_entidad(self, entidad: Entidad) -> None:
         payload = json.dumps(asdict(entidad), default=_codificar_json, ensure_ascii=False)
-        self._conn.execute(
-            "INSERT INTO entidades (entidad_id, email, datos_json) VALUES (?, ?, ?) "
-            "ON CONFLICT(entidad_id) DO UPDATE SET "
-            "email = excluded.email, datos_json = excluded.datos_json",
-            (entidad.entidad_id, entidad.contacto.email, payload),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO entidades (entidad_id, email, datos_json) VALUES (?, ?, ?) "
+                "ON CONFLICT(entidad_id) DO UPDATE SET "
+                "email = excluded.email, datos_json = excluded.datos_json",
+                (entidad.entidad_id, entidad.contacto.email, payload),
+            )
+            self._conn.commit()
 
     def obtener_entidad(self, entidad_id: str) -> Entidad | None:
-        fila = self._conn.execute(
-            "SELECT datos_json FROM entidades WHERE entidad_id = ?", (entidad_id,)
-        ).fetchone()
+        with self._lock:
+            fila = self._conn.execute(
+                "SELECT datos_json FROM entidades WHERE entidad_id = ?", (entidad_id,)
+            ).fetchone()
         if fila is None:
             return None
         return self._decodificar("entidad", entidad_id, _entidad_desde_dict, json.loads(fila[0]))
@@ -299,9 +310,10 @@ class AlmacenSQLite:
         """Login por email (ADR-005 §5). Email duplicado entre entidades =
         login ambiguo: decisión conservadora, devuelve None y lo cuenta —
         nunca elige una entidad al azar entre coincidencias."""
-        filas = self._conn.execute(
-            "SELECT entidad_id, datos_json FROM entidades WHERE email = ?", (email,)
-        ).fetchall()
+        with self._lock:
+            filas = self._conn.execute(
+                "SELECT entidad_id, datos_json FROM entidades WHERE email = ?", (email,)
+            ).fetchall()
         if len(filas) != 1:
             if len(filas) > 1:
                 self.entidades_duplicadas_por_email += 1
@@ -316,26 +328,28 @@ class AlmacenSQLite:
         payload = json.dumps(
             asdict(convocatoria), default=_codificar_json, ensure_ascii=False
         )
-        self._conn.execute(
-            "INSERT INTO convocatorias (convocatoria_id, portal, url_origen, datos_json) "
-            "VALUES (?, ?, ?, ?) "
-            "ON CONFLICT(convocatoria_id) DO UPDATE SET "
-            "portal = excluded.portal, url_origen = excluded.url_origen, "
-            "datos_json = excluded.datos_json",
-            (
-                convocatoria.convocatoria_id,
-                convocatoria.fuente.portal,
-                convocatoria.fuente.url_origen,
-                payload,
-            ),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO convocatorias (convocatoria_id, portal, url_origen, datos_json) "
+                "VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(convocatoria_id) DO UPDATE SET "
+                "portal = excluded.portal, url_origen = excluded.url_origen, "
+                "datos_json = excluded.datos_json",
+                (
+                    convocatoria.convocatoria_id,
+                    convocatoria.fuente.portal,
+                    convocatoria.fuente.url_origen,
+                    payload,
+                ),
+            )
+            self._conn.commit()
 
     def obtener_convocatoria(self, convocatoria_id: str) -> Convocatoria | None:
-        fila = self._conn.execute(
-            "SELECT datos_json FROM convocatorias WHERE convocatoria_id = ?",
-            (convocatoria_id,),
-        ).fetchone()
+        with self._lock:
+            fila = self._conn.execute(
+                "SELECT datos_json FROM convocatorias WHERE convocatoria_id = ?",
+                (convocatoria_id,),
+            ).fetchone()
         if fila is None:
             return None
         return self._decodificar(
@@ -344,11 +358,12 @@ class AlmacenSQLite:
 
     def obtener_por_url_origen(self, portal: str, url_origen: str) -> Convocatoria | None:
         """Clave natural de dedupe (ADR-001 §6.5): `portal`+`url_origen`."""
-        fila = self._conn.execute(
-            "SELECT convocatoria_id, datos_json FROM convocatorias "
-            "WHERE portal = ? AND url_origen = ?",
-            (portal, url_origen),
-        ).fetchone()
+        with self._lock:
+            fila = self._conn.execute(
+                "SELECT convocatoria_id, datos_json FROM convocatorias "
+                "WHERE portal = ? AND url_origen = ?",
+                (portal, url_origen),
+            ).fetchone()
         if fila is None:
             return None
         convocatoria_id, datos_json = fila
@@ -359,18 +374,20 @@ class AlmacenSQLite:
     # Matches — SIEMPRE filtrados por entidad_id ------------------------
     def guardar_match(self, match: Match) -> None:
         payload = json.dumps(asdict(match), default=_codificar_json, ensure_ascii=False)
-        self._conn.execute(
-            "INSERT INTO matches (match_id, entidad_id, convocatoria_id, datos_json) "
-            "VALUES (?, ?, ?, ?) "
-            "ON CONFLICT(match_id) DO UPDATE SET datos_json = excluded.datos_json",
-            (match.match_id, match.entidad_id, match.convocatoria_id, payload),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO matches (match_id, entidad_id, convocatoria_id, datos_json) "
+                "VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(match_id) DO UPDATE SET datos_json = excluded.datos_json",
+                (match.match_id, match.entidad_id, match.convocatoria_id, payload),
+            )
+            self._conn.commit()
 
     def listar_matches_por_entidad(self, entidad_id: str) -> list[Match]:
-        filas = self._conn.execute(
-            "SELECT match_id, datos_json FROM matches WHERE entidad_id = ?", (entidad_id,)
-        ).fetchall()
+        with self._lock:
+            filas = self._conn.execute(
+                "SELECT match_id, datos_json FROM matches WHERE entidad_id = ?", (entidad_id,)
+            ).fetchall()
         matches = []
         for match_id, datos_json in filas:
             match = self._decodificar("match", match_id, _match_desde_dict, json.loads(datos_json))
@@ -380,28 +397,30 @@ class AlmacenSQLite:
 
     # Tokens de acceso (magic link) — ADR-005 §5 ------------------------
     def crear_token(self, entidad_id: str, token_hash: str, expira_en: datetime) -> None:
-        self._conn.execute(
-            "INSERT INTO tokens_acceso (token_hash, entidad_id, expira_en, usado_en) "
-            "VALUES (?, ?, ?, NULL) "
-            "ON CONFLICT(token_hash) DO UPDATE SET "
-            "entidad_id = excluded.entidad_id, expira_en = excluded.expira_en, usado_en = NULL",
-            (token_hash, entidad_id, expira_en.isoformat()),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO tokens_acceso (token_hash, entidad_id, expira_en, usado_en) "
+                "VALUES (?, ?, ?, NULL) "
+                "ON CONFLICT(token_hash) DO UPDATE SET "
+                "entidad_id = excluded.entidad_id, expira_en = excluded.expira_en, usado_en = NULL",
+                (token_hash, entidad_id, expira_en.isoformat()),
+            )
+            self._conn.commit()
 
     def consumir_token(self, token_hash: str, ahora: datetime) -> str | None:
         """UPDATE atómico (check-and-mark-used en una sola sentencia SQL): solo
         marca usado si existía, no había expirado y no se había usado ya."""
         ahora_iso = ahora.isoformat()
-        cur = self._conn.execute(
-            "UPDATE tokens_acceso SET usado_en = ? "
-            "WHERE token_hash = ? AND usado_en IS NULL AND expira_en > ?",
-            (ahora_iso, token_hash, ahora_iso),
-        )
-        self._conn.commit()
-        if cur.rowcount != 1:
-            return None
-        fila = self._conn.execute(
-            "SELECT entidad_id FROM tokens_acceso WHERE token_hash = ?", (token_hash,)
-        ).fetchone()
-        return fila[0] if fila else None
+        with self._lock:
+            cur = self._conn.execute(
+                "UPDATE tokens_acceso SET usado_en = ? "
+                "WHERE token_hash = ? AND usado_en IS NULL AND expira_en > ?",
+                (ahora_iso, token_hash, ahora_iso),
+            )
+            self._conn.commit()
+            if cur.rowcount != 1:
+                return None
+            fila = self._conn.execute(
+                "SELECT entidad_id FROM tokens_acceso WHERE token_hash = ?", (token_hash,)
+            ).fetchone()
+            return fila[0] if fila else None
