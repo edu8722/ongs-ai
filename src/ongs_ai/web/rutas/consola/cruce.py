@@ -23,6 +23,20 @@ router = APIRouter(prefix="/consola", dependencies=[Depends(solo_loopback), Depe
 _plantillas = crear_plantillas()
 
 
+def _requisitos_sin_datos(convocatoria) -> bool:
+    """PROMPT-023 D — honestidad visual: sin NINGÚN requisito estructurado más
+    allá del ámbito (forma jurídica, antigüedad, requisitos formales todos
+    vacíos), el 70% de cobertura del scoring queda vacíamente satisfecho y
+    puede leerse como certeza que no existe. Solo presentación: no cambia el
+    modelo de score ni la elegibilidad (ADR-006)."""
+    req = convocatoria.requisitos_elegibilidad
+    return (
+        req.forma_juridica_requerida is None
+        and req.antiguedad_minima_anios is None
+        and not req.requisitos_formales_requeridos
+    )
+
+
 def _info_perfil(perfil) -> dict:
     if isinstance(perfil, Entidad):
         return {
@@ -77,7 +91,14 @@ def cruce(request: Request, perfil: str | None = None):
             estado_cruce = "no_evaluable"
         else:
             estado_cruce = "no_elegible"
-        evaluaciones.append({"convocatoria": c, "resultado": resultado, "estado_cruce": estado_cruce})
+        evaluaciones.append(
+            {
+                "convocatoria": c,
+                "resultado": resultado,
+                "estado_cruce": estado_cruce,
+                "requisitos_sin_datos": _requisitos_sin_datos(c),
+            }
+        )
     evaluaciones.sort(key=lambda e: (not e["resultado"].elegible, -e["resultado"].score))
 
     return _plantillas.TemplateResponse(

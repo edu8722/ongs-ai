@@ -24,7 +24,7 @@
   "descripcionBasesReguladoras": "Orden ficticia por la que se aprueban las bases reguladoras",
   "urlBasesReguladoras": "https://www.example-ficticio.gencat-ficticio.cat/bases",
   "sePublicaDiarioOficial": true,
-  "abierto": false,
+  "abierto": true,
   "fechaInicioSolicitud": "2026-02-01",
   "fechaFinSolicitud": "2026-03-15",
   "textInicio": "A partir del día siguiente a la publicación",

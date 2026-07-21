@@ -21,7 +21,7 @@
   "descripcionBasesReguladoras": "Ordenanza general ficticia de subvenciones del ayuntamiento",
   "urlBasesReguladoras": null,
   "sePublicaDiarioOficial": true,
-  "abierto": false,
+  "abierto": true,
   "fechaInicioSolicitud": "2026-01-01",
   "fechaFinSolicitud": null,
   "textInicio": "A partir del día siguiente a la publicación en el boletín provincial",

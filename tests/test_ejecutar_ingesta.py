@@ -14,6 +14,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from ejecutar_ingesta import ejecutar_pasada  # noqa: E402
 
+from ongs_ai.adapters.ingesta.bdns import (  # noqa: E402
+    MOTIVO_CONCESION_DIRECTA,
+    MOTIVO_NO_ABIERTA_EN_ORIGEN,
+)
 from ongs_ai.adapters.persistencia.memoria import AlmacenMemoria  # noqa: E402
 from ongs_ai.dominio.entidades import (  # noqa: E402
     ActividadDeclarada,
@@ -372,3 +376,45 @@ def test_sin_cliente_ia_la_pasada_completa_sin_ia():
     assert resumen.propuestas_nuevas == 1
     matches = almacen.listar_matches_por_entidad("ent-1")
     assert matches[0].explicacion_ia is None
+
+
+def test_resumen_cuenta_descartadas_por_dominio_por_motivo():
+    # PROMPT-023 B: la métrica cuenta por motivo (una convocatoria puede
+    # llevar ambos a la vez, como el caso real numConv=920435).
+    almacen = AlmacenMemoria()
+    almacen.guardar_entidad(_entidad())
+    no_abierta = _convocatoria_extraida(
+        "bdns-no-abierta",
+        estado_ingesta=EstadoIngesta.DESCARTADA_POR_DOMINIO,
+        requisitos_elegibilidad=RequisitosElegibilidad(exclusiones=(MOTIVO_NO_ABIERTA_EN_ORIGEN,)),
+    )
+    concesion_directa = _convocatoria_extraida(
+        "bdns-concesion",
+        estado_ingesta=EstadoIngesta.DESCARTADA_POR_DOMINIO,
+        requisitos_elegibilidad=RequisitosElegibilidad(exclusiones=(MOTIVO_CONCESION_DIRECTA,)),
+    )
+    ambos_motivos = _convocatoria_extraida(
+        "bdns-ambos",
+        estado_ingesta=EstadoIngesta.DESCARTADA_POR_DOMINIO,
+        requisitos_elegibilidad=RequisitosElegibilidad(
+            exclusiones=(MOTIVO_NO_ABIERTA_EN_ORIGEN, MOTIVO_CONCESION_DIRECTA)
+        ),
+    )
+    fuente = _FuenteStub([no_abierta, concesion_directa, ambos_motivos, _convocatoria_extraida()])
+    notificador = NotificadorStub()
+
+    resumen = ejecutar_pasada(
+        fuente,
+        almacen,
+        notificador,
+        HOY,
+        cliente_ia=None,
+        generador_explicacion=None,
+        generador_ids=_ids(),
+        reloj=_reloj,
+    )
+
+    assert resumen.descartadas_no_abiertas == 2
+    assert resumen.descartadas_concesion_directa == 2
+    # La descartada NUNCA se enriquece ni se promociona (no está EXTRAIDA).
+    assert almacen.obtener_convocatoria("bdns-no-abierta").estado_ingesta == EstadoIngesta.DESCARTADA_POR_DOMINIO

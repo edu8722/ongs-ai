@@ -14,10 +14,15 @@ import pytest
 
 from ongs_ai.adapters.ingesta.base import FiltrosBusqueda
 from ongs_ai.adapters.ingesta.bdns import (
+    MOTIVO_CONCESION_DIRECTA,
+    MOTIVO_NO_ABIERTA_EN_ORIGEN,
     URL_BUSQUEDA_BDNS,
     URL_DETALLE_BDNS,
     FuenteBDNS,
+    _aplicar_tope_por_organo,
     _ambito_y_region_desde_regiones,
+    mapear_convocatoria,
+    _motivos_descarte_dominio,
 )
 from ongs_ai.dominio.entidades import AmbitoTerritorial, EstadoIngesta, TipoFuente
 
@@ -210,6 +215,148 @@ def test_ambito_region_codigo_no_numerico_es_nacional():
         AmbitoTerritorial.NACIONAL,
         None,
         None,
+    )
+
+
+def test_ambito_region_nuts1_un_digito_con_ccaa_reconocida_es_autonomico():
+    # Caso real verificado (hallazgo del operador, numConv=920435): 1 dígito
+    # tras "ES" con nombre de CCAA reconocido -> autonómico, NUNCA nacional.
+    assert _ambito_y_region_desde_regiones([{"descripcion": "ES7 - CANARIAS"}]) == (
+        AmbitoTerritorial.AUTONOMICO,
+        "CANARIAS",
+        None,
+    )
+
+
+def test_ambito_region_nuts1_un_digito_sin_ccaa_reconocida_es_nacional():
+    assert _ambito_y_region_desde_regiones([{"descripcion": "ES9 - COMUNIDAD FICTICIA"}]) == (
+        AmbitoTerritorial.NACIONAL,
+        None,
+        None,
+    )
+
+
+# --- Tope por órgano (A2) ---------------------------------------------------
+
+
+def test_tope_organo_autonomica_reduce_nacional_a_autonomico_con_nivel2():
+    organo = {"nivel1": "AUTONOMICA", "nivel2": "CANARIAS"}
+    assert _aplicar_tope_por_organo(AmbitoTerritorial.NACIONAL, None, None, organo) == (
+        AmbitoTerritorial.AUTONOMICO,
+        "CANARIAS",
+        None,
+    )
+
+
+def test_tope_organo_autonomica_no_pisa_region_ya_derivada():
+    organo = {"nivel1": "AUTONOMICA", "nivel2": "CANARIAS"}
+    assert _aplicar_tope_por_organo(AmbitoTerritorial.AUTONOMICO, "CATALUÑA", None, organo) == (
+        AmbitoTerritorial.AUTONOMICO,
+        "CATALUÑA",
+        None,
+    )
+
+
+def test_tope_organo_autonomica_no_ensancha_provincial():
+    organo = {"nivel1": "AUTONOMICA"}
+    assert _aplicar_tope_por_organo(AmbitoTerritorial.PROVINCIAL, None, "Jaén", organo) == (
+        AmbitoTerritorial.PROVINCIAL,
+        None,
+        "Jaén",
+    )
+
+
+def test_tope_organo_local_reduce_nacional_a_provincial_sin_nombre():
+    organo = {"nivel1": "LOCAL"}
+    assert _aplicar_tope_por_organo(AmbitoTerritorial.NACIONAL, None, None, organo) == (
+        AmbitoTerritorial.PROVINCIAL,
+        None,
+        None,
+    )
+
+
+def test_tope_organo_local_reduce_autonomico_a_provincial_y_limpia_region():
+    organo = {"nivel1": "LOCAL"}
+    assert _aplicar_tope_por_organo(AmbitoTerritorial.AUTONOMICO, "CATALUÑA", None, organo) == (
+        AmbitoTerritorial.PROVINCIAL,
+        None,
+        None,
+    )
+
+
+def test_tope_organo_estado_mantiene_lo_derivado():
+    organo = {"nivel1": "ESTADO"}
+    assert _aplicar_tope_por_organo(AmbitoTerritorial.NACIONAL, None, None, organo) == (
+        AmbitoTerritorial.NACIONAL,
+        None,
+        None,
+    )
+
+
+# --- Descarte por dominio (B) -----------------------------------------------
+
+
+def test_motivos_descarte_abierto_false_da_motivo_no_abierta():
+    assert _motivos_descarte_dominio({"abierto": False}) == (MOTIVO_NO_ABIERTA_EN_ORIGEN,)
+
+
+def test_motivos_descarte_abierto_true_no_descarta():
+    assert _motivos_descarte_dominio({"abierto": True}) == ()
+
+
+def test_motivos_descarte_abierto_ausente_no_descarta_por_ese_criterio():
+    assert _motivos_descarte_dominio({}) == ()
+
+
+def test_motivos_descarte_concesion_directa_da_motivo():
+    assert _motivos_descarte_dominio(
+        {"tipoConvocatoria": "Concesión directa - instrumental"}
+    ) == (MOTIVO_CONCESION_DIRECTA,)
+
+
+def test_motivos_descarte_concurrencia_competitiva_no_descarta():
+    assert _motivos_descarte_dominio({"tipoConvocatoria": "Concurrencia competitiva - canónica"}) == ()
+
+
+def test_motivos_descarte_tipo_convocatoria_ausente_no_descarta_por_ese_criterio():
+    assert _motivos_descarte_dominio({}) == ()
+
+
+def test_motivos_descarte_ambos_criterios_da_los_dos_motivos():
+    detalle = {"abierto": False, "tipoConvocatoria": "Concesión directa - instrumental"}
+    assert _motivos_descarte_dominio(detalle) == (
+        MOTIVO_NO_ABIERTA_EN_ORIGEN,
+        MOTIVO_CONCESION_DIRECTA,
+    )
+
+
+# --- Caso real numConv=920435 (hallazgo del operador) -----------------------
+#
+# Fixture grabada de una petición manual real (fuera de tests) contra
+# https://www.infosubvenciones.es/bdnstrans/api/convocatorias?numConv=920435
+# el 2026-07-22: "PARTICIPACIÓN DE CCOO ... FP CANARIA 2026", órgano
+# AUTONOMICA/CANARIAS, regiones=[{"descripcion": "ES7 - CANARIAS"}],
+# abierto=false, tipoConvocatoria="Concesión directa - instrumental". Antes
+# de A/B esta convocatoria se mapeaba como NACIONAL y VERIFICADA — triple
+# fallo de honestidad de datos (ver engineering/06_SIGUIENTES_PASOS.md,
+# PROMPT-023).
+
+
+def test_caso_real_920435_ambito_autonomico_canarias_y_descartada_por_dominio():
+    detalle = _cargar_fixture("bdns_detalle_920435.json")
+    c = mapear_convocatoria(detalle, ahora=AHORA)
+
+    assert c.convocatoria_id == "bdns-920435"
+    assert c.fuente.tipo is TipoFuente.PUBLICA_AUTONOMICA
+    assert c.ambito_geografico is AmbitoTerritorial.AUTONOMICO
+    assert c.region == "CANARIAS"
+    assert c.provincia is None
+    assert c.requisitos_elegibilidad.ambito_territorial_requerido is AmbitoTerritorial.AUTONOMICO
+
+    assert c.estado_ingesta is EstadoIngesta.DESCARTADA_POR_DOMINIO
+    assert c.requisitos_elegibilidad.exclusiones == (
+        MOTIVO_NO_ABIERTA_EN_ORIGEN,
+        MOTIVO_CONCESION_DIRECTA,
     )
 
 

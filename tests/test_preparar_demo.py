@@ -73,6 +73,8 @@ def _resumen_ingesta_fake(ingestadas: int = 3) -> ResumenPasada:
         llamadas_ia_usadas=0,
         convocatorias_sin_ia_por_freno=0,
         fallos_ia_inesperados=0,
+        descartadas_no_abiertas=0,
+        descartadas_concesion_directa=0,
     )
 
 

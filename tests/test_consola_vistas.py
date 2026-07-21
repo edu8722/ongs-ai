@@ -170,6 +170,41 @@ def test_cruce_sin_perfiles_no_revienta():
     assert "Sin entidades ni candidatas" in resp.text
 
 
+def test_cruce_muestra_badge_requisitos_sin_datos_cuando_no_hay_nada_estructurado():
+    # PROMPT-023 D: `_convocatoria()` tiene `RequisitosElegibilidad()` vacía
+    # (más allá del ámbito) -> el 70% de cobertura no debe leerse como certeza.
+    almacen = _almacen_poblado()
+    cliente = _cliente_loopback(almacen)
+
+    resp = cliente.get("/consola/cruce")
+    assert resp.status_code == 200
+    assert "requisitos sin datos — revisar bases" in resp.text
+
+
+def test_cruce_no_muestra_badge_cuando_hay_requisitos_estructurados():
+    almacen = AlmacenMemoria()
+    almacen.guardar_entidad(_entidad())
+    convocatoria_con_requisitos = Convocatoria(
+        convocatoria_id="conv-con-requisitos",
+        fuente=Fuente(portal="BDNS", url_origen="https://demo.example/conv-con-requisitos", tipo=TipoFuente.PUBLICA_NACIONAL),
+        objeto="Ayudas con requisitos estructurados",
+        beneficiarios_elegibles="Entidades sin ánimo de lucro",
+        requisitos_elegibilidad=RequisitosElegibilidad(antiguedad_minima_anios=2),
+        ambito_geografico=AmbitoTerritorial.NACIONAL,
+        plazos=Plazos(fecha_apertura=date(2026, 1, 1), fecha_cierre=date(2026, 12, 31)),
+        cuantias=Cuantias(importe_maximo_centimos=1_000_000),
+        estado_ingesta=EstadoIngesta.VERIFICADA,
+        creado_en=T0,
+        actualizado_en=T0,
+    )
+    almacen.guardar_convocatoria(convocatoria_con_requisitos)
+    cliente = _cliente_loopback(almacen)
+
+    resp = cliente.get("/consola/cruce")
+    assert resp.status_code == 200
+    assert "requisitos sin datos — revisar bases" not in resp.text
+
+
 def test_mapa_lista_sedes_con_centroide_ccaa():
     cliente = _cliente_loopback(_almacen_poblado())
     resp = cliente.get("/consola/mapa")

@@ -14,16 +14,31 @@ real en 2026-07-18, ver `investigacion/R1_informe.md`):
 - `ambito_geografico` + `region`/`provincia` se derivan de `regiones` a partir
   del código NUTS que precede a " - " en la descripción de la ÚNICA región
   (cuando hay exactamente una): parte numérica vacía tras "ES" (código == "ES")
-  -> nacional; exactamente 2 dígitos (NUTS2, CCAA) -> autonomico, con `region`
-  = el nombre tras el guion ("ES51 - CATALUÑA" -> "CATALUÑA"); exactamente 3
-  dígitos (NUTS3, provincia) -> provincial, con `provincia` = el nombre tras
-  el guion ("ES616 - Jaén" -> "Jaén"); cualquier otra cosa (código que no
-  empieza por "ES", parte no numérica, u otro número de dígitos) -> nacional,
-  sin `region` ni `provincia`. Cero regiones o más de una -> nacional. Derivar
-  la CCAA a partir de un código NUTS3 (tabla NUTS3->NUTS2) queda fuera de
-  alcance de este adapter — candidato a ADR futuro si el matching provincial
-  de F3 lo necesita en la práctica (nota ya existente en
-  `dominio/elegibilidad.py` sobre el mismo hueco para `local`/`municipio`).
+  -> nacional; exactamente 1 dígito (NUTS1) cuyo nombre coincida (normalizado,
+  `normalizar_texto_comparacion` del dominio) con una CCAA de la tabla cerrada
+  `_NOMBRES_CCAA_NUTS1` -> autonomico con esa `region` (caso real verificado
+  numConv=920435: "ES7 - CANARIAS" -> autonomico/"CANARIAS"; el mismo dígito
+  sin nombre de CCAA reconocible sigue cayendo a nacional); exactamente 2
+  dígitos (NUTS2, CCAA) -> autonomico, con `region` = el nombre tras el guion
+  ("ES51 - CATALUÑA" -> "CATALUÑA"); exactamente 3 dígitos (NUTS3, provincia)
+  -> provincial, con `provincia` = el nombre tras el guion ("ES616 - Jaén" ->
+  "Jaén"); cualquier otra cosa (código que no empieza por "ES", parte no
+  numérica, u otro número de dígitos) -> nacional, sin `region` ni
+  `provincia`. Cero regiones o más de una -> nacional. Derivar la CCAA a
+  partir de un código NUTS3 (tabla NUTS3->NUTS2) queda fuera de alcance de
+  este adapter — candidato a ADR futuro si el matching provincial de F3 lo
+  necesita en la práctica (nota ya existente en `dominio/elegibilidad.py`
+  sobre el mismo hueco para `local`/`municipio`).
+- TOPE POR ÓRGANO (`_aplicar_tope_por_organo`, invariante nuevo tras el
+  hallazgo numConv=920435 — el ámbito derivado de `regiones` JAMÁS puede ser
+  más amplio que el órgano convocante): `organo.nivel1 == "AUTONOMICA"` ->
+  ámbito como mucho autonomico (si `regiones` no dio nombre, `region` cae a
+  `organo.nivel2` cuando existe); `organo.nivel1 == "LOCAL"` -> ámbito como
+  mucho provincial (sin nombre de respaldo — `organo.nivel2` en LOCAL es el
+  ente local, no una provincia; conservador con el dato ausente). Con
+  `"ESTADO"` (o cualquier otro valor, p. ej. "OTROS") se mantiene el ámbito ya
+  derivado. Se aplica SIEMPRE después del parseo de `regiones`, incluidas las
+  convocatorias descartadas por dominio (B).
 - `presupuestoTotal` (euros, puede llegar como float) -> se convierte a
   `cuantias.importe_maximo_centimos` en céntimos enteros con redondeo
   determinista vía `Decimal` (regla de oro: dinero nunca float hacia el
@@ -31,10 +46,26 @@ real en 2026-07-18, ver `investigacion/R1_informe.md`):
 - `objeto` combina `descripcion` (título específico de la convocatoria) y
   `descripcionFinalidad` (categoría) cuando ambos existen — el prompt pide
   mapear ambos campos y ninguno por separado captura el dato completo.
-- `requisitos_elegibilidad` solo lleva lo derivable determinista (el ámbito ya
-  calculado, replicado en `ambito_territorial_requerido`); forma jurídica,
-  antigüedad, requisitos formales y exclusiones quedan vacíos para la futura
-  capa de extracción IA.
+- `requisitos_elegibilidad` lleva el ámbito ya calculado (replicado en
+  `ambito_territorial_requerido`, YA con el tope por órgano aplicado — nunca
+  puede contradecir a `ambito_geografico`) y, si la convocatoria se descarta
+  por dominio (ver abajo), los motivos en `exclusiones`; forma jurídica,
+  antigüedad y requisitos formales quedan vacíos para la futura capa de
+  extracción IA.
+- DESCARTE POR DOMINIO (`_motivos_descarte_dominio`, campos REALES del
+  detalle BDNS, verificados contra numConv=920435 — ver
+  `tests/fixtures/ingesta/bdns_detalle_920435.json`): `abierto` (bool) — si es
+  `false` en el momento de la ingesta, la convocatoria NO se ofrece como
+  oportunidad (motivo "no abierta en origen"); `tipoConvocatoria` (texto
+  libre, p. ej. "Concesión directa - instrumental" para ayudas nominativas
+  sin concurrencia) — si contiene "concesión directa" (normalizado), ídem
+  (motivo "concesión directa (no concurrencia)"). Cualquiera de los dos
+  motivos -> `estado_ingesta = DESCARTADA_POR_DOMINIO` directamente (nunca
+  pasa por EXTRAIDA/VERIFICADA) y el/los motivo(s) quedan en
+  `requisitos_elegibilidad.exclusiones` (así el resumen de la pasada puede
+  contar `descartadas_no_abiertas`/`descartadas_concesion_directa` sin un
+  campo nuevo en el contrato congelado). Campo AUSENTE en el detalle -> nunca
+  se descarta por ese criterio (conservador: jamás se adivina por el título).
 - Fallos de transporte degradan limpio (nunca lanzan hacia el dominio): si
   falla la petición de búsqueda paginada, se registra y se corta ahí
   (se devuelve lo ya obtenido); si falla el detalle de una convocatoria
@@ -58,6 +89,7 @@ from ongs_ai.dominio.entidades import (
     Plazos,
     RequisitosElegibilidad,
     TipoFuente,
+    normalizar_texto_comparacion,
 )
 from ongs_ai.dominio.ingesta_estado import promocionar_si_completa
 
@@ -71,6 +103,53 @@ _MAPA_NIVEL1_TIPO_FUENTE: dict[str, TipoFuente] = {
     "ESTADO": TipoFuente.PUBLICA_NACIONAL,
     "AUTONOMICA": TipoFuente.PUBLICA_AUTONOMICA,
     "LOCAL": TipoFuente.PUBLICA_LOCAL,
+}
+
+# Tabla CERRADA (A1): los 19 nombres oficiales de CCAA (17 + Ceuta y Melilla)
+# más los alias ya usados en consola (`web/rutas/consola/_soporte.CENTROIDE_CCAA`
+# — mismo conjunto de claves normalizadas, duplicado a propósito: este adapter
+# no debe depender de una ruta web; el normalizador SÍ se reutiliza, nunca se
+# reimplementa). Claves ya normalizadas con `normalizar_texto_comparacion`.
+_NOMBRES_CCAA_NUTS1: frozenset[str] = frozenset(
+    {
+        "andalucia",
+        "aragon",
+        "principado de asturias",
+        "asturias",
+        "illes balears",
+        "islas baleares",
+        "canarias",
+        "cantabria",
+        "castilla y leon",
+        "castilla-la mancha",
+        "catalunya",
+        "cataluna",
+        "comunitat valenciana",
+        "comunidad valenciana",
+        "extremadura",
+        "galicia",
+        "comunidad de madrid",
+        "madrid",
+        "region de murcia",
+        "comunidad foral de navarra",
+        "navarra",
+        "pais vasco",
+        "euskadi",
+        "la rioja",
+        "ceuta",
+        "melilla",
+    }
+)
+
+# B — motivos deterministas de descarte por dominio (ver docstring del módulo).
+MOTIVO_NO_ABIERTA_EN_ORIGEN = "no abierta en origen"
+MOTIVO_CONCESION_DIRECTA = "concesión directa (no concurrencia)"
+
+_ANCHURA_AMBITO: dict[AmbitoTerritorial, int] = {
+    AmbitoTerritorial.NACIONAL: 0,
+    AmbitoTerritorial.AUTONOMICO: 1,
+    AmbitoTerritorial.PROVINCIAL: 2,
+    AmbitoTerritorial.LOCAL: 3,
 }
 
 
@@ -88,7 +167,8 @@ def _ambito_y_region_desde_regiones(
 ) -> tuple[AmbitoTerritorial, str | None, str | None]:
     """Deriva (ambito_geografico, region, provincia) a partir del código NUTS de
     la ÚNICA región (cuando hay exactamente una); ver regla completa en la
-    nota del docstring del módulo."""
+    nota del docstring del módulo. NO aplica el tope por órgano (A2) — eso lo
+    hace `_aplicar_tope_por_organo`, siempre después de esta función."""
     descripciones = [
         (r.get("descripcion") or "").strip() for r in (regiones or []) if r.get("descripcion")
     ]
@@ -102,11 +182,54 @@ def _ambito_y_region_desde_regiones(
     digitos = codigo[2:]
     if not digitos.isdigit():
         return AmbitoTerritorial.NACIONAL, None, None
+    if len(digitos) == 1:
+        if normalizar_texto_comparacion(nombre) in _NOMBRES_CCAA_NUTS1:
+            return AmbitoTerritorial.AUTONOMICO, nombre, None
+        return AmbitoTerritorial.NACIONAL, None, None
     if len(digitos) == 2:
         return AmbitoTerritorial.AUTONOMICO, nombre, None
     if len(digitos) == 3:
         return AmbitoTerritorial.PROVINCIAL, None, nombre
     return AmbitoTerritorial.NACIONAL, None, None
+
+
+def _aplicar_tope_por_organo(
+    ambito: AmbitoTerritorial,
+    region: str | None,
+    provincia: str | None,
+    organo: dict,
+) -> tuple[AmbitoTerritorial, str | None, str | None]:
+    """A2 — el ámbito derivado JAMÁS puede ser más amplio que el órgano
+    convocante (invariante nuevo tras el hallazgo numConv=920435: sin este
+    tope, un fallo de parseo de `regiones` puede sobre-prometer una
+    convocatoria autonómica/local como nacional). Ver regla completa en el
+    docstring del módulo."""
+    nivel1 = organo.get("nivel1")
+    if nivel1 == "AUTONOMICA":
+        tope = AmbitoTerritorial.AUTONOMICO
+        if _ANCHURA_AMBITO[ambito] < _ANCHURA_AMBITO[tope]:
+            nivel2 = (organo.get("nivel2") or "").strip() or None
+            return tope, region or nivel2, None
+        return ambito, region, provincia
+    if nivel1 == "LOCAL":
+        tope = AmbitoTerritorial.PROVINCIAL
+        if _ANCHURA_AMBITO[ambito] < _ANCHURA_AMBITO[tope]:
+            return tope, None, None
+        return ambito, region, provincia
+    return ambito, region, provincia
+
+
+def _motivos_descarte_dominio(detalle: dict) -> tuple[str, ...]:
+    """B1/B2 — motivos deterministas de descarte a partir de campos REALES del
+    detalle BDNS; ver docstring del módulo. Dato ausente -> nunca se descarta
+    por ese criterio."""
+    motivos: list[str] = []
+    if detalle.get("abierto") is False:
+        motivos.append(MOTIVO_NO_ABIERTA_EN_ORIGEN)
+    tipo_convocatoria = detalle.get("tipoConvocatoria")
+    if tipo_convocatoria and "concesion directa" in normalizar_texto_comparacion(tipo_convocatoria):
+        motivos.append(MOTIVO_CONCESION_DIRECTA)
+    return tuple(motivos)
 
 
 def _beneficiarios_desde_lista(tipos_beneficiarios: list[dict]) -> str:
@@ -136,11 +259,19 @@ def _objeto_desde_detalle(detalle: dict) -> str:
     return finalidad or descripcion
 
 
-def _mapear_convocatoria(detalle: dict, *, ahora: datetime) -> Convocatoria:
+def mapear_convocatoria(detalle: dict, *, ahora: datetime) -> Convocatoria:
     organo = detalle.get("organo") or {}
     codigo_bdns = str(detalle["codigoBDNS"])
     ambito_geografico, region, provincia = _ambito_y_region_desde_regiones(
         detalle.get("regiones") or []
+    )
+    ambito_geografico, region, provincia = _aplicar_tope_por_organo(
+        ambito_geografico, region, provincia, organo
+    )
+
+    motivos_descarte = _motivos_descarte_dominio(detalle)
+    estado_ingesta = (
+        EstadoIngesta.DESCARTADA_POR_DOMINIO if motivos_descarte else EstadoIngesta.EXTRAIDA
     )
 
     convocatoria = Convocatoria(
@@ -154,6 +285,7 @@ def _mapear_convocatoria(detalle: dict, *, ahora: datetime) -> Convocatoria:
         beneficiarios_elegibles=_beneficiarios_desde_lista(detalle.get("tiposBeneficiarios") or []),
         requisitos_elegibilidad=RequisitosElegibilidad(
             ambito_territorial_requerido=ambito_geografico,
+            exclusiones=motivos_descarte,
         ),
         ambito_geografico=ambito_geografico,
         plazos=Plazos(
@@ -161,7 +293,7 @@ def _mapear_convocatoria(detalle: dict, *, ahora: datetime) -> Convocatoria:
             fecha_cierre=_fecha_desde_iso(detalle.get("fechaFinSolicitud")),
         ),
         cuantias=Cuantias(importe_maximo_centimos=_euros_a_centimos(detalle.get("presupuestoTotal"))),
-        estado_ingesta=EstadoIngesta.EXTRAIDA,
+        estado_ingesta=estado_ingesta,
         creado_en=ahora,
         actualizado_en=ahora,
         documento_origen_ref=detalle.get("urlBasesReguladoras"),
@@ -220,7 +352,7 @@ class FuenteBDNS:
                     continue
                 try:
                     detalle = self._transporte.obtener_json(URL_DETALLE_BDNS, {"numConv": num_conv})
-                    convocatoria = _mapear_convocatoria(detalle, ahora=self._reloj())
+                    convocatoria = mapear_convocatoria(detalle, ahora=self._reloj())
                 except Exception as exc:  # una convocatoria feo/caída no tumba las demás
                     logger.warning(
                         "Fallo de transporte/mapeo en detalle BDNS numConv=%s: %s", num_conv, exc

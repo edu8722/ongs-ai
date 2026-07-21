@@ -24,7 +24,7 @@
   "descripcionBasesReguladoras": null,
   "urlBasesReguladoras": null,
   "sePublicaDiarioOficial": false,
-  "abierto": false,
+  "abierto": true,
   "fechaInicioSolicitud": null,
   "fechaFinSolicitud": null,
   "textInicio": null,

@@ -49,7 +49,11 @@ from ongs_ai.adapters.ingesta.base import (  # noqa: E402
     FuenteConvocatorias,
     TransporteURLLib,
 )
-from ongs_ai.adapters.ingesta.bdns import FuenteBDNS  # noqa: E402
+from ongs_ai.adapters.ingesta.bdns import (  # noqa: E402
+    MOTIVO_CONCESION_DIRECTA,
+    MOTIVO_NO_ABIERTA_EN_ORIGEN,
+    FuenteBDNS,
+)
 from ongs_ai.adapters.ingesta.servicio import ingestar  # noqa: E402
 from ongs_ai.adapters.persistencia.sqlite import AlmacenSQLite, RUTA_DB_DEFECTO  # noqa: E402
 from ongs_ai.dominio.entidades import Convocatoria, EstadoIngesta  # noqa: E402
@@ -81,6 +85,8 @@ class ResumenPasada:
     llamadas_ia_usadas: int
     convocatorias_sin_ia_por_freno: int
     fallos_ia_inesperados: int
+    descartadas_no_abiertas: int
+    descartadas_concesion_directa: int
 
 
 class _FuenteMaterializada:
@@ -196,6 +202,8 @@ def ejecutar_pasada(
     enriquecidas = 0
     promovidas = 0
     sin_ia_por_freno = 0
+    descartadas_no_abiertas = 0
+    descartadas_concesion_directa = 0
     claves_vistas: set[tuple[str, str]] = set()
     contador_fallos_inesperados = _ContadorMutable()
 
@@ -209,6 +217,13 @@ def ejecutar_pasada(
         # (dedupe), puede llevar enriquecimiento de una pasada anterior que
         # el texto recién descargado no tiene — nunca se pisa con el fetch.
         convocatoria = almacen.obtener_por_url_origen(*clave) or convocatoria_fetch
+
+        if convocatoria.estado_ingesta is EstadoIngesta.DESCARTADA_POR_DOMINIO:
+            exclusiones = convocatoria.requisitos_elegibilidad.exclusiones
+            if MOTIVO_NO_ABIERTA_EN_ORIGEN in exclusiones:
+                descartadas_no_abiertas += 1
+            if MOTIVO_CONCESION_DIRECTA in exclusiones:
+                descartadas_concesion_directa += 1
 
         actualizada = convocatoria
         if (
@@ -269,6 +284,8 @@ def ejecutar_pasada(
         llamadas_ia_usadas=cliente_ia.llamadas if cliente_ia is not None else 0,
         convocatorias_sin_ia_por_freno=sin_ia_por_freno,
         fallos_ia_inesperados=contador_fallos_inesperados.valor,
+        descartadas_no_abiertas=descartadas_no_abiertas,
+        descartadas_concesion_directa=descartadas_concesion_directa,
     )
 
 
@@ -357,6 +374,8 @@ def main() -> None:
     print(f"Llamadas IA usadas: {resumen.llamadas_ia_usadas} (tope: {args.max_llamadas_ia})")
     print(f"Convocatorias sin IA por freno de plan: {resumen.convocatorias_sin_ia_por_freno}")
     print(f"Fallos IA inesperados (degradados, la pasada siguió): {resumen.fallos_ia_inesperados}")
+    print(f"Descartadas por dominio (no abiertas en origen): {resumen.descartadas_no_abiertas}")
+    print(f"Descartadas por dominio (concesión directa): {resumen.descartadas_concesion_directa}")
 
 
 if __name__ == "__main__":

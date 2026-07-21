@@ -52,6 +52,7 @@
           <span class="badge neutral">{{ c.ambito_geografico|ambito_label }}</span>
           <span class="badge neutral num">{{ c.cuantias.importe_maximo_centimos|euros }} máx.</span>
           <span class="badge neutral num">{{ (r.dias_hasta_cierre ~ " días") if r.dias_hasta_cierre is not none else "sin fecha" }}</span>
+          {% if e.requisitos_sin_datos %}<span class="badge warn">requisitos sin datos — revisar bases</span>{% endif %}
         </div>
       </div>
       <div class="m-right">

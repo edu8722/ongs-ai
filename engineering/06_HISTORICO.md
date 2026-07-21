@@ -7,6 +7,25 @@
 
 ## Semana 2026-07-20/26
 
+- **PROMPT-022 — cliente CLI hermético + guardarraíl de arranque + enlace por
+  POST** (Sonnet) — **HECHO 7822282, APROBADO (auditoría contra repo real), 339
+  tests.** Cierra la SAGA DE LOS 400 y el fallo UTF-8: (A) subprocess con
+  encoding utf-8/errors replace y frontera a prueba de None (el cp1252 de
+  Windows reventaba el hilo lector con 0x8d → stdout None → TypeError escapaba
+  al dominio y tumbaba la pasada entera — doble violación del contrato de
+  PROMPT-018, reproducida fail-first); runner con IA envuelta y contador
+  fallos_ia_inesperados. (B) GET /login/confirmar ya no consume (página+botón,
+  POST consume, sin-CSRF documentado: el token de un solo uso es la prueba de
+  posesión) — blindaje ante prefetch y escáneres de correo, con test de 5 GETs
+  repetidos. (A6) arranque real aborta si ONGS_AI_ENV=test (causa REAL de los
+  dos 400 del operador: variable fantasma en la consola del servidor,
+  diagnosticada con script read-only en las dos consolas tras dos teorías
+  erróneas del arquitecto — prefetch y "dos almacenes", esta última por lectura
+  stale del mount). DEMO.md paso 1 completo (ONGS_AI_ENV= y PYTHONUTF8=1).
+  Cronología completa de los 4 sospechosos del 400: (1) ENV=test original, (2)
+  fechas ISO no-UTC (latente, arreglado en 021), (3) prefetch (teórico, ahora
+  imposible por diseño), (4) ENV=test reincidente — confirmado y bloqueado.
+
 - **PROMPT-021 — consola con diseño del prototipo + demo de un comando + fix del
   enlace** (Sonnet) — **HECHO 7f3e73f, APROBADO (auditoría del arquitecto contra el
   repo real), 331 tests. RESPUESTA AL FEEDBACK DURO DEL OPERADOR (3 demos
