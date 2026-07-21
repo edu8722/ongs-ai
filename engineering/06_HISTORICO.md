@@ -2,6 +2,20 @@
 
 ## Semana 2026-07-20/26
 
+- **PROMPT-018 — Adapter IA por suscripción (CLI headless) + runner de ingesta local**
+  (Sonnet) — **HECHO 7ce0fd7, APROBADO (auditoría del arquitecto), 256 tests.**
+  `ia/claude_cli.py` (ejecutor de subprocess inyectable, forma real del JSON del CLI
+  documentada, toda vía de fallo degrada limpia con contador); ExplicadorClaudeCLI +
+  factory; `ia/extraccion_requisitos.py` (IA propone campos de elegibilidad SOLO del
+  texto presente, validación determinista — descarta typos y bool-como-int, jamás
+  pisa dato existente); freno de plan compartido (default 25); puerto aditivo
+  `listar_entidades` en ambos backends con test de contrato;
+  `scripts/ejecutar_ingesta.py` (pipeline completo, orquestación testeada con stubs).
+  PASADA REAL del cierre: 50 convocatorias BDNS nuevas ingestadas, 1 enriquecida por
+  IA (3/3 llamadas, 13 sin IA por freno — degradación correcta), 29 no elegibles con
+  motivo, **1 propuesta real generada y avisada**. La visión corre de punta a punta
+  con datos vivos y la suscripción del operador.
+
 - **PROMPT-017 — Fix SQLite multihilo bajo FastAPI** (Sonnet) — **HECHO 1336741,
   APROBADO (auditoría del arquitecto), 222 tests.** check_same_thread=False + Lock
   del almacén serializando toda operación (migración incluida). Regresión doble:
