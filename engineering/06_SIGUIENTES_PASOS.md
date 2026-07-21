@@ -70,6 +70,13 @@ siguiente acción según este documento.
 
 ## ESTADO VIVO
 
+- **2026-07-21 — PROMPT-018 CERRADO: APROBADO, HECHO 7ce0fd7, 256 tests, pushed.
+  LA VISIÓN CORRE CON DATOS REALES:** pasada real = 50 convocatorias BDNS nuevas,
+  extracción IA con la suscripción del operador (freno de plan funcionando),
+  29 no elegibles con motivo, **1 propuesta real generada y avisada**. Detalle →
+  histórico. **DESBLOQUEADO: la demo real del guion (bandeja) ya es ejecutable.**
+  **SIGUIENTE EN COLA: PROMPT-019 (ADR-006, Opus) — consola del operador +
+  candidatas + scoring.** F5 espera el feedback de la demo.
 - **2026-07-21 — PROMPT-017 CERRADO: APROBADO, HECHO 1336741, 222 tests, pushed.**
   Fix SQLite multihilo verificado (Lock + check_same_thread; la sesión comprobó que
   los tests de regresión fallan con el fix revertido — práctica ejemplar).
@@ -218,6 +225,78 @@ resumen impreso — verificación humana del pipeline completo con tu
 suscripción.
 ```
 
+#### PROMPT-019 — ADR-006: consola del operador + candidatas + scoring · MODELO: Opus · ORDEN: 1º (nada en paralelo) · SIN CÓDIGO DE PRODUCCIÓN
+
+```
+POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda
+de implementación, elige la opción más conservadora/reversible y DOCUMENTA
+la decisión en el resumen final; ante ambigüedad de alcance, implementa lo
+literal del prompt y anota lo que dejaste fuera; jamás inventes datos ni
+mediciones (si necesitas un dato que no tienes, esa sí es pregunta
+legítima); las preguntas no bloqueantes van AGRUPADAS al final del
+trabajo, no en medio. Reglas de oro de CLAUDE.md por encima de todo — si
+el prompt y CLAUDE.md chocan, gana CLAUDE.md y me lo señalas. Antes de
+tocar un fichero grande, Grep al símbolo y lee el rango — nunca el
+fichero entero. La pizarra (engineering/06_*) la mantiene SOLO el
+arquitecto: no cierres items, no te declares APROBADO, no muevas nada al
+histórico — limítate a incluir en tu commit los cambios de
+engineering/06_* que ya estén en el working tree, tal cual estén.
+
+TAREA: escribir engineering/ADR-006-consola-operador-y-scoring.md. SOLO
+documentación. Lee antes: prototipos/ongs-ai-prototipo.html (REFERENCIA
+de diseño — es maqueta con datos sintéticos, no la app), CLAUDE.md,
+ADR-001/002/005, src/ongs_ai/dominio/elegibilidad.py,
+servicios/panel.py, web/ (esqueleto existente) y el maestro de
+prospección descrito en el 06 (investigacion/, fuera de git, 511
+candidatas con datos parciales).
+
+El problema de producto: el OPERADOR (no las entidades) necesita la
+herramienta del "paso previo" — explorar candidatas y enseñarles a
+cuántas convocatorias podrían presentarse y por cuánto importe (el cruce
+del prototipo). Decisiones a tomar:
+
+1. CONSOLA DEL OPERADOR — rol nuevo, distinto del tenant: rutas
+   /consola/* en módulos propios, con lecturas GLOBALES (todas las
+   entidades) SIN debilitar ni un milímetro las garantías del panel de
+   entidades (separación estricta de routers y dependencias: la
+   dependencia de operador JAMÁS se usa en rutas de tenant ni viceversa).
+   Auth v1 proporcional al riesgo: proceso local en el PC del operador →
+   default a evaluar: clave de operador por variable de entorno + bind
+   SOLO a 127.0.0.1 para las rutas de consola; documenta qué cambia
+   cuando haya hosting.
+2. CANDIDATAS/PROSPECTOS: cómo entran las 511 del maestro sin violar el
+   contrato congelado (un prospecto NO tiene datos económicos, NIF ni
+   fecha de constitución — campos obligatorios de Entidad). Default a
+   evaluar: entidad nueva `Prospecto` FUERA del contrato de dominio
+   (infraestructura de captación, como TokensAcceso), con importador
+   desde el xlsx/csv del maestro (fichero SIEMPRE fuera de git) y
+   conversión explícita Prospecto→Entidad al completar el alta. La
+   evaluación de elegibilidad sobre un prospecto usa SOLO los requisitos
+   evaluables con sus datos parciales (lo no evaluable se muestra como
+   "pendiente de dato", jamás inventado).
+3. SCORING DE AFINIDAD + IMPORTE POTENCIAL (hipótesis del prototipo →
+   producto): definición DETERMINISTA (sin LLM en el número): puntos por
+   requisitos duros cumplidos/evaluables y afinidad de actividades;
+   importe potencial = agregado de cuantías máximas de las convocatorias
+   elegibles (céntimos int; rangos, no promesas). El score ORDENA y
+   comunica, JAMÁS decide elegibilidad (el guardarraíl binario de F3
+   queda intacto). Explicable motivo a motivo como el prototipo. Dónde
+   vive: servicio de solo lectura, sin cambio del contrato congelado —
+   si concluyes que exige tocar contrato, ese es un hallazgo del ADR, no
+   una licencia para hacerlo.
+4. Superficies sin fugas: la consola muestra datos de prospección (⚠ dato
+   personal de contacto) — SOLO en localhost v1, nunca desplegada tal
+   cual; qué se redacta/oculta si algún día se hospeda.
+5. ALTERNATIVAS descartadas, CONSECUENCIAS (tests: anti-fuga sigue
+   OBLIGATORIO para tenants; la consola gana tests propios), FASES con
+   prompt completo SOLO de la primera (F-consola.1), y PREGUNTAS AL
+   OPERADOR con default, agrupadas.
+
+Ritual de cierre: commit ÚNICO (ADR + engineering/06_* del working tree
+tal cual), pytest VERDE con el nº REAL de tests, `git status` antes del
+add, `git push`.
+```
+
 - El prompt de F5 se redacta tras la demo del operador (su feedback alimenta la
   spec; probable ADR-006 con DocumentoRequerido).
 
@@ -228,10 +307,12 @@ suscripción.
   `investigacion/demo_real_guion.md`; perfil en `scripts/demo_entidad_real.py`
   (desechable, no commitear). ORDEN: cerrar PROMPT-018 → seguir el guion → feedback
   al arquitecto (alimenta la spec de F5 y la versión enseñable del guion).
-- Pegar PROMPT-018 (proceso local + IA por suscripción, Sonnet) — COPIA la versión
-  ACTUAL del 06. Requiere el CLI `claude` instalado (ya lo usas para los empleados).
-  Tras cerrarse: decidir con el arquitecto la programación periódica (Programador de
-  tareas de Windows, p. ej. diaria a primera hora).
+- Pegar PROMPT-019 (ADR-006, **Opus**) — COPIA la versión ACTUAL del 06.
+- **LA DEMO REAL YA ES EJECUTABLE**: seguir `investigacion/demo_real_guion.md`
+  (perfil ABAIMAR + pasada real + panel). Tu feedback alimenta la spec de F5.
+- Programar la ingesta periódica: Programador de tareas de Windows → diaria (p. ej.
+  08:00) ejecutando `scripts/ejecutar_ingesta.py` con tus flags — lo afinamos juntos
+  cuando digas.
 - **VER LA APP (5 min):** `cd C:\dev\ongs-ai` → `set ONGS_AI_ENV=test` →
   `set ONGS_AI_SECRET_KEY=prueba-local` → `set PYTHONPATH=src` →
   `python -m uvicorn ongs_ai.web.app:app --reload --port 8001` → abrir
@@ -284,6 +365,8 @@ suscripción.
 
 ### Recordatorios operativos
 
+- Consola de Windows muestra acentos como � (cp1252): cosmético; `chcp 65001` lo
+  arregla por sesión. El dato subyacente es UTF-8 correcto.
 - ANTES de pegar un prompt: copialo del 06 ACTUAL, tras el ultimo aviso del
   arquitecto — dos prompts ya se ejecutaron en version vieja (015 y 016).
 
