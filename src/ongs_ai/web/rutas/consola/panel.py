@@ -12,6 +12,7 @@ from ongs_ai.web.dependencias_operador import operador_actual, solo_loopback
 from ongs_ai.web.rutas.consola._soporte import (
     clave_perfil,
     convocatoria_vigente,
+    convocatorias_utiles,
     crear_plantillas,
     mejores_cruces,
     nombre_perfil,
@@ -29,7 +30,9 @@ def dashboard(request: Request):
 
     entidades = almacen.listar_entidades()
     prospectos = almacen.listar_prospectos()
-    convocatorias = almacen.listar_convocatorias()
+    convocatorias_todas = almacen.listar_convocatorias()
+    convocatorias = convocatorias_utiles(almacen)
+    numero_descartadas = len(convocatorias_todas) - len(convocatorias)
     perfiles = [*entidades, *prospectos]
 
     resumenes = [resumen_prospeccion(perfil, convocatorias, hoy) for perfil in perfiles]
@@ -58,5 +61,6 @@ def dashboard(request: Request):
             "convocatorias_vivas": convocatorias_vivas,
             "importe_potencial_agregado": importe_potencial_agregado,
             "oportunidades": oportunidades,
+            "numero_descartadas": numero_descartadas,
         },
     )

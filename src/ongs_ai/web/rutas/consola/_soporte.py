@@ -143,6 +143,18 @@ def convocatoria_vigente(convocatoria: Convocatoria, hoy: date) -> bool:
     return cierre is None or cierre >= hoy
 
 
+def convocatorias_utiles(almacen) -> list[Convocatoria]:
+    """Convocatorias que son oportunidades reales para cruzar — todas MENOS
+    las DESCARTADA_POR_DOMINIO (cerradas en origen o concesión directa,
+    persistidas a propósito solo para el dedupe de ingesta, PROMPT-024).
+    Usada por el dashboard y /consola/cruce para no evaluar contra ruido
+    que por definición nunca es una oportunidad (PROMPT-025 A1)."""
+    return [
+        c for c in almacen.listar_convocatorias()
+        if c.estado_ingesta is not EstadoIngesta.DESCARTADA_POR_DOMINIO
+    ]
+
+
 def mejores_cruces(
     perfiles: list[Entidad | Prospecto], convocatorias: list[Convocatoria], hoy: date, *, limite: int = 4
 ) -> list[tuple[Entidad | Prospecto, Convocatoria, ResultadoAfinidad]]:

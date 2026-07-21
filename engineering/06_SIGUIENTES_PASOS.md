@@ -70,6 +70,22 @@ siguiente acción según este documento.
 
 ## ESTADO VIVO
 
+- **2026-07-22 — PROMPT-024 CERRADO: APROBADO, HECHO 3947e11, 368 tests, pushed.
+  LA COBERTURA EXISTE.** Auditado: batería versionada de 11 términos con
+  justificación por término (config de producto, no dato de ONG — documentado),
+  parámetro `descripcion` verificado, tope de páginas POR búsqueda, freno IA y
+  dedupe GLOBALES a la pasada, resumen por búsqueda, 4 tests de batería;
+  verificado en vivo y documentado que `abierto=` NO filtra en servidor (no se
+  usa). Pasada real: 1.458 ingestadas / 88 ya existentes. CONTRASTE CON EL
+  HISTÓRICO DE ANIRIDIA: IRPF 0,7% estatal, IRPF CAM, ayuda mutua CAM y
+  asociacionismo municipal APARECEN (todas con plazo ya cerrado hoy →
+  descartadas honestas); mantenimiento CAM no publicado aún. Conclusión: la
+  búsqueda funciona; lo que falta es VIGILANCIA de ediciones (ADR-007) — la
+  tesis del operador confirmada con datos.
+  **CONSECUENCIA OPERATIVA INMEDIATA: la base pasó de ~50 a ~1.550
+  convocatorias (mayoría DESCARTADAS persistidas para dedupe). Las vistas de
+  consola evalúan TODAS × 512 perfiles → consola lenta y cruce enterrado en
+  descartadas. Remiendo pequeño encolado como PROMPT-024b, ANTES del ADR.**
 - **2026-07-22 — TERCER PAQUETE DE FEEDBACK DE PRODUCTO DEL OPERADOR (voz del
   producto, convertido a spec):** (1) convocatorias ESPERADAS: en base a años
   anteriores, mostrar a cuáles podría presentarse cada asociación aunque la
@@ -146,68 +162,48 @@ siguiente acción según este documento.
 
 ### ➤ PROMPTS PENDIENTES — todos aquí, listos para copiar (se vacían al cerrarse)
 
-#### PROMPT-024 — Cobertura de ingesta: búsquedas dirigidas contra la BDNS · MODELO: Sonnet · ORDEN: 1º (nada en paralelo)
+#### PROMPT-024b — Las vistas de consola ignoran las descartadas (rendimiento + señal) · MODELO: Sonnet · ORDEN: 1º, PEQUEÑO — pegar ANTES del ADR si vas a usar la consola
 
 ```
-POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda
-de implementación, elige la opción más conservadora/reversible y DOCUMENTA
-la decisión en el resumen final; ante ambigüedad de alcance, implementa lo
-literal del prompt y anota lo que dejaste fuera; jamás inventes datos ni
-mediciones. Reglas de oro de CLAUDE.md por encima de todo. Antes de tocar
-un fichero grande, Grep al símbolo y lee el rango. La pizarra
-(engineering/06_*) la mantiene SOLO el arquitecto: no cierres items, no te
-declares APROBADO — limítate a incluir en tu commit los cambios de
-engineering/06_* que ya estén en el working tree, tal cual estén.
+POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda,
+elige la opción más conservadora/reversible y DOCUMENTA la decisión; lo
+literal del prompt y anota lo excluido; jamás inventes datos. Reglas de
+oro de CLAUDE.md por encima de todo. Grep antes de leer ficheros grandes.
+La pizarra (engineering/06_*) la mantiene SOLO el arquitecto: no cierres
+items, no te declares APROBADO — incluye en tu commit los cambios de
+engineering/06_* del working tree tal cual.
 
-CONTEXTO (hallazgo real del operador con evidencia): el histórico de
-concesiones de una asociación real (Aniridia, 2022-2024) contiene 15
-ayudas — IRPF 0,7% estatal y autonómico, mantenimiento de servicios CAM,
-fomento del asociacionismo municipal, diputaciones — y casi ninguna
-aparece en nuestra base. Causa: ejecutar_ingesta solo pagina las
-publicaciones más recientes de la búsqueda general; nunca BUSCA. El
-arquitecto verificó contra la API real que /convocatorias/busqueda acepta
-`descripcion=` como filtro de texto real (IRPF → 424 resultados).
+CONTEXTO: tras PROMPT-024 la base tiene ~1.550 convocatorias, la mayoría
+DESCARTADA_POR_DOMINIO (cerradas en origen / concesión directa,
+persistidas a propósito para el dedupe). Las vistas de consola evalúan
+TODAS contra ~512 perfiles en cada carga (cruce, dashboard) → lentitud
+severa y listados enterrados en descartadas que por definición no son
+oportunidades.
 
-A1. Batería de búsquedas dirigidas VERSIONADA en un módulo propio
-   (p. ej. src/ongs_ai/adapters/ingesta/busquedas_dirigidas.py): tupla
-   cerrada de términos con comentario de por qué cada uno, primera
-   edición: "IRPF", "fines sociales", "interés general", "discapacidad",
-   "enfermedades raras", "voluntariado", "asociacionismo", "entidades sin
-   ánimo de lucro", "tercer sector", "ayuda mutua", "inclusión". Es
-   estrategia de búsqueda (config del producto), no dato de ONG — el
-   anti-hardcoding no aplica aquí, documéntalo.
-A2. FuenteBDNS.buscar gana el parámetro de texto (`descripcion`) — nombre
-   EXACTO verificado por el arquitecto contra la API real. Si al probar
-   descubres más filtros útiles soportados de verdad (p. ej. fechas o
-   abierto en servidor), añádelos con una verificación real documentada;
-   si un parámetro no filtra de verdad (el arquitecto comprobó que en
-   /concesiones/busqueda `descripcionBeneficiario` NO filtra), NO lo uses.
-A3. ejecutar_ingesta.py: modo por defecto nuevo = recorrer la batería
-   completa (dedupe ya existente por código BDNS evita duplicados entre
-   búsquedas), con límite de páginas POR BÚSQUEDA (parámetro CLI,
-   defecto conservador 3) y el freno de IA global intacto. `--texto` para
-   una búsqueda ad hoc única. El resumen imprime resultados POR BÚSQUEDA
-   (encontradas/ingestadas/descartadas por los filtros del 023).
-A4. Los filtros de honestidad del 023 (abierto=false, concesión directa,
-   tope por órgano) se aplican a TODO lo que entre por cualquier búsqueda
-   — verifica con test que la ruta dirigida pasa por el mismo
-   mapear_convocatoria/criterios (no dupliques el pipeline).
-B. Tests: función de orquestación de la batería con transporte stub
-   (varias búsquedas, dedupe entre ellas, límite de páginas por búsqueda,
-   resumen por búsqueda). Sin red en CI, como siempre.
+A1. Nueva función en el módulo de soporte de consola (o servicio si
+   encaja mejor): convocatorias_utiles(almacen) = todas MENOS las
+   DESCARTADA_POR_DOMINIO. El dashboard (métricas, importe agregado,
+   "oportunidades más afines") y /consola/cruce evalúan SOLO esas.
+   El mapa no cambia (va de prospectos).
+A2. /consola/convocatorias: filtro de estado nuevo con defecto
+   "no descartadas"; opción explícita "ver también descartadas" (con su
+   motivo de exclusiones visible — el dato ya existe) para auditar por
+   qué algo se descartó. La cuenta del dashboard dice cuántas descartadas
+   hay ("N descartadas ocultas — verlas en Convocatorias").
+A3. Tests: cruce y dashboard con una base que mezcla verificadas y
+   descartadas — las descartadas NO aparecen ni se evalúan (asértalo con
+   un almacén stub que cuente llamadas o con el contenido renderizado);
+   filtro de convocatorias en sus tres variantes.
+A4. NO toques el scoring, el matching de fondo (detectar_y_proponer ya
+   exige VERIFICADA), el contrato ni la ingesta. Es un cambio de LECTURA
+   en las vistas.
 
-C. `python -m pytest -q` VERDE con el nº REAL de tests. NO toques
-   contrato, máquina de estados, scoring ni las vistas.
+C. python -m pytest -q VERDE con el nº REAL de tests.
 
-Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
-git status antes del add (JAMÁS los CSV/xlsx/PDF de investigacion/),
-git push. Tras el commit, EJECUTA la pasada real con la batería completa
-(límite de páginas conservador) y pega el resumen por búsqueda; comprueba
-y reporta expresamente si aparecen ya (edición 2026 abierta) las del
-histórico de Aniridia: IRPF 0,7%% estatal, IRPF 0,7%% CAM, mantenimiento
-de servicios CAM, ayuda mutua y autocuidados CAM, fomento del
-asociacionismo (Ayto. Madrid). Las que no existan aún NO son fallo tuyo:
-son las "recurrentes esperadas" que resolverá ADR-007 (vigilancia).
+Ritual de cierre: commit ÚNICO con nº real de tests, git status antes del
+add (JAMÁS investigacion/), push. Tras el commit: abre /consola y
+/consola/cruce con la base real (~1.550) y reporta el tiempo de carga
+percibido antes/después.
 ```
 
 #### PROMPT-025 — ADR-007: vigilancia de recurrentes, historial por NIF y convocatorias esperadas · MODELO: Opus · ORDEN: 2º (SOLO tras cerrar PROMPT-024; nada en paralelo)
@@ -358,27 +354,19 @@ el dashboard — verificación humana del ciclo completo sin terminal.
 
 ### Bandeja del OPERADOR
 
-- Si aún no lo hiciste: `python scripts/reevaluar_ingesta.py --aplicar` (limpieza
-  del plan ya visto). La repoblación buena llegará con el PROMPT-024 (búsquedas
-  dirigidas) — puedes esperar a pegarlo y hacer una sola pasada completa.
-- **Pegar PROMPT-024 (Sonnet) — COPIA la versión ACTUAL del 06.** Al cerrar,
-  la propia sesión ejecuta la pasada real y te dice cuáles del histórico de
-  Aniridia ya aparecen.
-- **Los tres prompts están AHORA COMPLETOS en la cola, en orden: 024 (Sonnet,
-  cobertura) → 025/ADR-007 (OPUS, diseño de recurrentes) → 026/F-consola.3
-  (Sonnet, filtros + botones web). DE UNO EN UNO: pega el siguiente solo
-  cuando yo haya auditado y cerrado el anterior.** El 025 es un ADR: sesión
-  con OPUS, solo escribe diseño, sin código.
-- Guarda tu PDF como investigacion/aniridia_concesiones_2022_2024.pdf —
-  investigacion/ NO viaja a git. Lo usaremos como caso de contraste del ADR-007.
-- Sigue apuntando lo raro — tus dos hallazgos (honestidad y cobertura) han
-  definido los dos últimos prompts.
+- **Orden de pegado actualizado: 024b (pequeño, consola usable con la base
+  grande) → 025/ADR-007 (OPUS, diseño) → 026/F-consola.3.** De uno en uno,
+  copiando del 06 ACTUAL, esperando mi auditoría entre uno y otro.
+- Aviso mientras no cierre 024b: /consola y /consola/cruce pueden tardar
+  MUCHO con las ~1.550 convocatorias — no es un cuelgue; usa los filtros de
+  /consola/convocatorias, que es la vista que mejor aguanta.
+- Sigue apuntando lo raro que veas — tus hallazgos están dirigiendo la cola.
 - Commit de docs cuando quieras:
   `git add engineering/ && git commit -m "Pizarra (docs)" && git push`
-- Decisión pendiente (sin prisa): teléfono público de ABAIMAR commiteado en
+- Decisión pendiente (sin prisa): teléfono público de ABAIMAR en
   scripts/preparar_demo.py (repo privado). ¿Lo dejamos o placeholder?
-- En espera: retirar demo-conv-1/2/3 (próximo prompt de código), entidad
-  piloto, SMTP real + smoke_email, programación diaria, censo FEDER.
+- En espera: retirar demo-conv-1/2/3, entidad piloto, SMTP real,
+  programación diaria, censo FEDER.
 
 ### Backlog
 

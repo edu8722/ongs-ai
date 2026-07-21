@@ -14,13 +14,20 @@
     {% endfor %}
   </select>
   <select name="estado" aria-label="Filtrar por estado">
-    <option value="">Todos los estados</option>
+    <option value="">Todos los estados (sin descartadas)</option>
     {% for e in estados %}
     <option value="{{ e.value }}" {% if filtro_estado == e.value %}selected{% endif %}>{{ e|estado_ingesta_label }}</option>
     {% endfor %}
   </select>
+  <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-2)">
+    <input type="checkbox" name="incluir_descartadas" value="1" {% if incluir_descartadas %}checked{% endif %}>
+    Ver también descartadas
+  </label>
   <button type="submit">Filtrar</button>
 </form>
+{% if numero_descartadas_totales and not incluir_descartadas and not filtro_estado %}
+<p class="lead" style="margin-top:8px;font-size:13px">{{ numero_descartadas_totales }} descartadas ocultas — auditables con "Ver también descartadas".</p>
+{% endif %}
 
 <div class="grid conv" style="margin-top:16px">
   {% for fila in filas %}
@@ -34,9 +41,12 @@
     <div class="conv-meta">
       <span class="badge neutral">{{ c.region or c.provincia or "—" }}</span>
       <span class="badge neutral">{{ c.beneficiarios_elegibles[:60] }}{% if c.beneficiarios_elegibles|length > 60 %}…{% endif %}</span>
-      <span class="badge {{ 'ok' if c.estado_ingesta.value == 'verificada' else 'neutral' }}">{{ c.estado_ingesta|estado_ingesta_label }}</span>
+      <span class="badge {{ 'ok' if c.estado_ingesta.value == 'verificada' else ('no' if c.estado_ingesta.value == 'descartada_por_dominio' else 'neutral') }}">{{ c.estado_ingesta|estado_ingesta_label }}</span>
       {% if not fila.vigente %}<span class="badge no">Cerrada</span>{% endif %}
     </div>
+    {% if fila.motivo_exclusion %}
+    <div style="color:var(--text-2);font-size:12.5px;margin-top:6px">Motivo del descarte: {{ fila.motivo_exclusion }}</div>
+    {% endif %}
     <div class="conv-money">
       <div><span class="amt num">{{ c.cuantias.importe_maximo_centimos|euros }}</span><div class="lbl">cuantía máxima</div></div>
       <div style="text-align:right">

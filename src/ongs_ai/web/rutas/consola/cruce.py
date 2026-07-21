@@ -12,6 +12,7 @@ from ongs_ai.servicios.afinidad import EstadoRequisito, evaluar_afinidad
 from ongs_ai.web.dependencias_operador import operador_actual, solo_loopback
 from ongs_ai.web.rutas.consola._soporte import (
     clave_perfil,
+    convocatorias_utiles,
     crear_plantillas,
     nombre_perfil,
     obtener_perfil_por_clave,
@@ -81,7 +82,7 @@ def cruce(request: Request, perfil: str | None = None):
             },
         )
 
-    convocatorias = almacen.listar_convocatorias()
+    convocatorias = convocatorias_utiles(almacen)
     evaluaciones = []
     for c in convocatorias:
         resultado = evaluar_afinidad(perfil_actual, c, hoy)

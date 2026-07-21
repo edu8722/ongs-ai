@@ -76,6 +76,22 @@ def _convocatoria() -> Convocatoria:
     )
 
 
+def _convocatoria_descartada() -> Convocatoria:
+    return Convocatoria(
+        convocatoria_id="conv-descartada-1",
+        fuente=Fuente(portal="BDNS", url_origen="https://demo.example/conv-descartada-1", tipo=TipoFuente.PUBLICA_NACIONAL),
+        objeto="Ayuda nominativa descartada de la prueba",
+        beneficiarios_elegibles="Entidades sin ánimo de lucro",
+        requisitos_elegibilidad=RequisitosElegibilidad(exclusiones=("concesión directa (no concurrencia)",)),
+        ambito_geografico=AmbitoTerritorial.NACIONAL,
+        plazos=Plazos(fecha_apertura=date(2026, 1, 1), fecha_cierre=date(2026, 12, 31)),
+        cuantias=Cuantias(importe_maximo_centimos=9_000_000),
+        estado_ingesta=EstadoIngesta.DESCARTADA_POR_DOMINIO,
+        creado_en=T0,
+        actualizado_en=T0,
+    )
+
+
 def _prospecto() -> Prospecto:
     return Prospecto(
         prospecto_id="prospecto-consola-1",
@@ -135,6 +151,84 @@ def test_convocatorias_lista_y_filtra_por_texto():
 
     resp_ambito = cliente.get("/consola/convocatorias", params={"ambito": "nacional"})
     assert "atención directa a familias" in resp_ambito.text
+
+
+def test_convocatorias_sin_ninguna_fecha_no_revienta_el_orden():
+    # Bug preexistente hallado al verificar contra la base real (~1.550
+    # convocatorias): con fecha_apertura Y fecha_cierre ausentes, la clave de
+    # orden comparaba date con None y reventaba. La proyección jamás lanza
+    # por un dato feo (regla de oro) -> se ordena al final.
+    almacen = _almacen_poblado()
+    almacen.guardar_convocatoria(
+        Convocatoria(
+            convocatoria_id="conv-sin-fechas",
+            fuente=Fuente(portal="BDNS", url_origen="https://demo.example/conv-sin-fechas", tipo=TipoFuente.PUBLICA_NACIONAL),
+            objeto="Ayuda sin fechas publicadas",
+            beneficiarios_elegibles="Entidades sin ánimo de lucro",
+            requisitos_elegibilidad=RequisitosElegibilidad(),
+            ambito_geografico=AmbitoTerritorial.NACIONAL,
+            plazos=Plazos(),
+            cuantias=Cuantias(),
+            estado_ingesta=EstadoIngesta.EXTRAIDA,
+            creado_en=T0,
+            actualizado_en=T0,
+        )
+    )
+    cliente = _cliente_loopback(almacen)
+
+    resp = cliente.get("/consola/convocatorias")
+    assert resp.status_code == 200
+    assert "Ayuda sin fechas publicadas" in resp.text
+
+
+def test_convocatorias_oculta_descartadas_por_defecto_y_las_muestra_bajo_demanda():
+    # PROMPT-025 A2: filtro de estado con tres variantes.
+    almacen = _almacen_poblado()
+    almacen.guardar_convocatoria(_convocatoria_descartada())
+    cliente = _cliente_loopback(almacen)
+
+    # 1) por defecto (sin filtro de estado) -> descartadas ocultas
+    resp = cliente.get("/consola/convocatorias")
+    assert resp.status_code == 200
+    assert "atención directa a familias" in resp.text
+    assert "Ayuda nominativa descartada" not in resp.text
+    assert "1 descartadas ocultas" in resp.text
+
+    # 2) "ver también descartadas" -> aparece, con motivo visible
+    resp_incluir = cliente.get("/consola/convocatorias", params={"incluir_descartadas": "1"})
+    assert resp_incluir.status_code == 200
+    assert "atención directa a familias" in resp_incluir.text
+    assert "Ayuda nominativa descartada" in resp_incluir.text
+    assert "concesión directa (no concurrencia)" in resp_incluir.text
+
+    # 3) filtro de estado explícito "descartada_por_dominio" -> solo descartadas
+    resp_estado = cliente.get("/consola/convocatorias", params={"estado": "descartada_por_dominio"})
+    assert resp_estado.status_code == 200
+    assert "Ayuda nominativa descartada" in resp_estado.text
+    assert "atención directa a familias" not in resp_estado.text
+    assert "concesión directa (no concurrencia)" in resp_estado.text
+
+
+def test_dashboard_no_evalua_ni_muestra_descartadas():
+    almacen = _almacen_poblado()
+    almacen.guardar_convocatoria(_convocatoria_descartada())
+    cliente = _cliente_loopback(almacen)
+
+    resp = cliente.get("/consola")
+    assert resp.status_code == 200
+    assert "Ayudas a la atención directa a familias" in resp.text
+    assert "Ayuda nominativa descartada" not in resp.text
+
+
+def test_cruce_no_evalua_ni_ofrece_descartadas():
+    almacen = _almacen_poblado()
+    almacen.guardar_convocatoria(_convocatoria_descartada())
+    cliente = _cliente_loopback(almacen)
+
+    resp = cliente.get("/consola/cruce")
+    assert resp.status_code == 200
+    assert "Ayudas a la atención directa a familias" in resp.text
+    assert "Ayuda nominativa descartada" not in resp.text
 
 
 def test_entidades_unificada_muestra_captadas_y_candidatas():

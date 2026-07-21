@@ -7,6 +7,19 @@
 
 ## Semana 2026-07-20/26
 
+- **PROMPT-024 — cobertura de ingesta: búsquedas dirigidas** (Sonnet) — **HECHO
+  3947e11, APROBADO, 368 tests.** Origen: segundo hallazgo del operador (PDF
+  histórico de concesiones de Aniridia 2022-2024) — la ingesta solo paginaba lo
+  recién publicado, nunca buscaba. Batería versionada de 11 términos con
+  justificación individual; `descripcion=` verificado por el arquitecto contra
+  la API real (IRPF → 424); tope de páginas por búsqueda; freno IA y dedupe
+  globales; resumen por búsqueda; `abierto=` comprobado en vivo como NO-filtro
+  (documentado, no usado). Pasada real: 1.458 nuevas, 88 dedupe. Contraste con
+  el histórico de Aniridia: IRPF estatal/CAM, ayuda mutua y asociacionismo
+  municipal APARECEN (cerradas hoy → descartadas honestas); mantenimiento CAM
+  aún sin publicar → confirma la necesidad de ADR-007 (vigilancia). Secuela
+  operativa: base ~1.550 filas → PROMPT-024b (vistas ignoran descartadas).
+
 - **PROMPT-023 — honestidad de la ingesta BDNS** (Sonnet) — **HECHO 36a95a3,
   APROBADO (auditoría contra repo real), 364 tests.** Origen: PRIMER hallazgo de
   producto del operador usando la consola (Aniridia vs "PARTICIPACIÓN DE CCOO

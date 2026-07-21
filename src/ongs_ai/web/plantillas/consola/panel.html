@@ -14,7 +14,9 @@
   <div class="stat">
     <div class="k">Convocatorias vivas</div>
     <div class="v">{{ convocatorias_vivas }}</div>
-    <div class="s">de la BDNS y otras fuentes ingeridas</div>
+    <div class="s">de la BDNS y otras fuentes ingeridas
+      {% if numero_descartadas %}· <a href="/consola/convocatorias?incluir_descartadas=1">{{ numero_descartadas }} descartadas ocultas — verlas en Convocatorias</a>{% endif %}
+    </div>
   </div>
   <div class="stat">
     <div class="k">Importe potencial agregado</div>
