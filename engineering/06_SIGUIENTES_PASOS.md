@@ -70,14 +70,19 @@ siguiente acción según este documento.
 
 ## ESTADO VIVO
 
-- **2026-07-21 — F4.2 CERRADA Y AUDITADA: APROBADO, HECHO fb95b4a, 176 tests,
-  pushed.** Email SMTP real (cliente inyectado, plantilla pura sin datos internos,
-  config solo en factory) + read model del panel por tenant + smoke manual. Detalle
-  → histórico. Dos remates van en PROMPT-012: cubo ACEPTADA del panel (omisión del
-  prompt del arquitecto) y patrón gitignore que no cubría `R2_asociaciones_*`.
-  **Estado de fases: F1 ✔ · ADR-002 ✔ · F3 ✔ · F2 ✔ · F2-fix ✔ · F4.1 ✔ · F4.2 ✔ ·
-  SIGUIENTE: PROMPT-012 (scraper FEDER + remates) · Después: esqueleto app / F5.**
-- F4.1 cerrada y auditada (HECHO 9f8c732, 155 tests) — detalle en histórico.
+- **2026-07-21 — PROMPT-012 CERRADO Y AUDITADO: APROBADO, HECHO 6457682, 184
+  tests, pushed.** Panel completo (cubo aceptadas), gitignore blindado
+  (`investigacion/*asociaciones*`), scraper FEDER con parser hermético y salvaguarda.
+  Detalle → histórico. **Hallazgo del scraper: techo REAL del listado FEDER =
+  ~272/476** (capa de mapa Drupal idéntica en todas las páginas; ~204 entidades sin
+  geocodificar inalcanzables por web) → llegar al censo completo = otra fuente o
+  pedir el listado a FEDER directamente (candidato: cuando haya relación con FEDER).
+  **Maestro de prospección v3 = 511 entidades** (`asociaciones_EERR_directorio_v3
+  .xlsx`, fuera de git; 147 nuevas + 20 enriquecidas al fusionar el volcado).
+  **Estado de fases: F1 ✔ · ADR-002 ✔ · F3 ✔ · F2+fix ✔ · F4.1 ✔ · F4.2 ✔ ·
+  utilidades ✔ · SIGUIENTE: PROMPT-013 (ADR-005: esqueleto web + auth, Opus) ·
+  Después: F5.**
+- F4.1 (9f8c732, 155 t) y F4.2 (fb95b4a, 176 t) cerradas y auditadas — histórico.
 - **2026-07-21 — INCIDENTE DE PIZARRA, resuelto:** el mount pisó el 06 del disco con
   una copia del día 18 (commiteada sin querer en 61d76a4). Recuperado desde
   `9f8c732` + cierre de F4.1. Consecuencia: regla nueva de gobernanza en el
@@ -178,7 +183,7 @@ Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
 `git status` antes del add, `git push` al terminar.
 ```
 
-#### PROMPT-012 — Utilidad: extracción completa FEDER + remates de auditoría F4.2 · MODELO: Sonnet · ORDEN: 1º (nada en paralelo)
+#### PROMPT-013 — ADR-005: esqueleto web + autenticación multi-tenant · MODELO: Opus · ORDEN: 1º (nada en paralelo) · SIN CÓDIGO DE PRODUCCIÓN
 
 ```
 POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda
@@ -195,54 +200,60 @@ arquitecto: no cierres items, no te declares APROBADO, no muevas nada al
 histórico — limítate a incluir en tu commit los cambios de
 engineering/06_* que ya estén en el working tree, tal cual estén.
 
-TAREA: dos remates de la auditoría de F4.2 + utilidad de captación (script
-manual que extrae el directorio COMPLETO de entidades asociadas de FEDER,
-~476, para el fichero de prospección del operador).
+TAREA: escribir el ADR-005 de ONGs-AI — esqueleto de la aplicación web y
+autenticación multi-tenant. SOLO documentación, ni una línea de código de
+producción. Lee antes: CLAUDE.md, PROJECT_CONTEXT.md,
+engineering/ADR-004-persistencia-matches-y-aviso-proactivo.md (§2.5 panel)
+y `src/ongs_ai/servicios/panel.py` (read model ya existente que la UI debe
+consumir tal cual).
 
-0a. REMATE PANEL: añade el cubo `aceptadas` (EstadoMatch.ACEPTADA) a
-   `ResumenPanel` y `resumen_panel` en `src/ongs_ai/servicios/panel.py`
-   (mismo orden más-reciente-primero) + test. Era omisión del prompt de
-   F4.2, no decisión de diseño.
-0b. REMATE GITIGNORE: el patrón `investigacion/asociaciones*` NO cubre
-   `investigacion/R2_asociaciones_eerr_tanda1.xlsx`. Sustitúyelo por
-   `investigacion/*asociaciones*` y verifica con `git check-ignore` que
-   cubre TODOS los ficheros de datos presentes en investigacion/ que
-   contengan "asociaciones" (los R1_* del catálogo siguen trackeados).
+Contexto: el backend está completo hasta F4.2 (ingesta BDNS, elegibilidad,
+propuestas con aviso email, read model del panel por tenant). Falta la capa
+web: el panel donde cada entidad (tenant) ve sus propuestas y decide
+(aceptar/descartar → transiciones de la máquina de estados), y el esqueleto
+sobre el que crecerá F5.
 
-1. `scripts/scrape_feder.py` — script MANUAL con red real (documenta en el
-   docstring que hace red y NO corre en CI): recorre la paginación real de
-   https://www.enfermedades-raras.org/movimiento-asociativo/entidades-asociadas
-   (descubre el parámetro de paginación del HTML real: enlace "página
-   siguiente" / ?page=N), con pausa de 1-2 s entre peticiones y User-Agent
-   identificable. De cada entidad del listado extrae: nombre, dirección,
-   teléfono(s), email(s), web y provincia/CCAA si constan. Sé robusto a
-   ficheros de ficha incompletos (dato ausente = vacío, jamás inventado).
-2. Salida: `investigacion/asociaciones_feder_completo.xlsx` y `.csv`
-   (comprueba con `git check-ignore` que el patrón
-   `investigacion/asociaciones*` los cubre — los DATOS JAMÁS se commitean).
-   Imprime al final un resumen: nº entidades, nº con email, nº con
-   teléfono, nº de páginas recorridas.
-3. La función de PARSEO (HTML → registros) va separada del transporte y se
-   testea HERMÉTICAMENTE con un fixture HTML pequeño y sintético en
-   tests/fixtures/ (estructura real, datos ficticios) — pytest sin red.
-4. `python -m pytest -q` VERDE. El commit lleva script + test + fixture,
-   NUNCA los datos extraídos. Incluye los cambios de engineering/06_* del
-   working tree tal cual.
+Escribe `engineering/ADR-005-esqueleto-web-y-auth.md` con:
 
-Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
-`git status` antes del add, `git push`. Tras el commit, EJECUTA el script
-una vez (tú tienes red), verifica el resumen impreso contra el contador
-del directorio (~476) y repórtalo — los ficheros de datos quedan en
-investigacion/, sin commitear.
+1. DECISIÓN de stack web: default conservador a evaluar = FastAPI +
+   uvicorn + plantillas Jinja2 renderizadas en servidor (sin frontend SPA
+   en v1) — argumenta o corrige. Rutas de cada feature en MÓDULO PROPIO
+   (regla de CLAUDE.md: el fichero central solo gana includes).
+2. DECISIÓN de autenticación multi-tenant (aquí está el riesgo — trátalo
+   como seguridad): cómo se identifica una entidad, cómo se evita por
+   construcción que un tenant vea datos de otro (el `entidad_id` de la
+   sesión autenticada es la ÚNICA fuente del id que llega a
+   `resumen_panel` — jamás un parámetro de URL manipulable), gestión de
+   credenciales (default a evaluar: magic link por email reutilizando el
+   adapter SMTP de F4.2, sin contraseñas que custodiar en v1), sesiones
+   firmadas, y qué NO se hace en v1 (autoregistro abierto: fuera — altas
+   las hace el operador).
+3. Superficies públicas sin fugas (regla de oro): qué expone cada ruta;
+   ids internos/costes jamás; errores genéricos hacia fuera.
+4. ALTERNATIVAS descartadas y por qué (SPA+API, contraseñas clásicas,
+   sesión por token en URL…).
+5. CONSECUENCIAS: comando de servidor local que se fijará en CLAUDE.md;
+   impacto en tests (la capa web se testea con cliente de test, sin red ni
+   servidor real; anti-fuga cross-tenant OBLIGATORIO a nivel HTTP);
+   dependencias runtime nuevas (serían las primeras — justifícalas y
+   fíjalas con versión).
+6. FASES con orientación + SOLO el prompt completo de la primera (F-web.1:
+   esqueleto + auth + panel de solo lectura; las transiciones
+   aceptar/descartar y F5 vienen después), con este mismo preámbulo.
+7. PREGUNTAS AL OPERADOR con default cada una, agrupadas al final.
+
+Ritual de cierre: commit ÚNICO (ADR + cambios de engineering/06_* del
+working tree tal cual), pytest VERDE con el nº REAL de tests en el
+mensaje, `git status` antes del add, `git push`.
 ```
 
 ### Bandeja del OPERADOR
 
-- Pegar PROMPT-012 en Claude Code (Sonnet) y avisar para auditoría. Al cerrarse,
-  EJECUTAR `python scripts/scrape_feder.py` (red real, lo pide el propio prompt) y
-  reportar el resumen.
+- Pegar PROMPT-013 (ADR-005, **Opus**) en Claude Code y avisar para auditoría.
 - `python scripts/smoke_email.py` cuando tengas buzón/credenciales SMTP (variables
   ONGS_AI_SMTP_*) — verifica el aviso por email real. Puede esperar.
+- Cuando haya relación con FEDER (p. ej. vía piloto): pedirles el censo completo de
+  entidades asociadas — el listado web solo expone ~272 de 476 (hallazgo PROMPT-012).
 - **Entidad piloto:** elegir 2-3 candidatas del informe R2 (GERNA, PERA, ARER,
   ASERCA, ABAIMAR, red ASEM…) y pedir al arquitecto el mensaje de propuesta.
 - Decidir si continúa como arquitecto esta sesión o la del día 19 — UNA sola activa

@@ -2,6 +2,21 @@
 
 ## Semana 2026-07-20/26
 
+- **PROMPT-012 — Remates F4.2 + scraper FEDER** (Sonnet) — **HECHO 6457682, APROBADO
+  (auditoría del arquitecto), 184 tests.** Cubo `aceptadas` añadido al panel (orden
+  espejo de la máquina de estados); gitignore corregido a
+  `investigacion/*asociaciones*` (verificado con git check-ignore sobre los 4
+  ficheros de datos); parser hermético en `adapters/captacion/feder.py` (fixtures
+  sintéticas) + `scripts/scrape_feder.py` manual con pausa, UA identificable y
+  salvaguarda anti-martilleo; xlsx writer stdlib para no meter la primera dependencia
+  runtime. Ejecutado por la sesión con red real: **272 entidades (270 con email)** —
+  y hallazgo de valor: el listado de FEDER sirve una capa de mapa Drupal/Geolocation
+  idéntica en todas las páginas; su contador dice 476 pero ~204 entidades sin
+  geocodificar son INALCANZABLES por esa vía (otra fuente o pedir censo a FEDER).
+  El arquitecto fusionó el volcado en el maestro de prospección:
+  `asociaciones_EERR_directorio_v3.xlsx` = **511 entidades** (147 nuevas, 20
+  enriquecidas), fuera de git.
+
 - **PROMPT-011 — F4.2: adapter de email SMTP real + read model del panel** (Sonnet) —
   **HECHO fb95b4a, APROBADO (auditoría del arquitecto), 176 tests. F4.2 CERRADA.**
   `adapters/avisos/email_smtp.py` (NotificadorEmailSMTP con cliente inyectado — cero
