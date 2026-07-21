@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block titulo %}Entidades — Consola ONGs-AI{% endblock %}
+{% block contenido %}
+<h1>Entidades captadas ({{ entidades|length }})</h1>
+<form method="post" action="/consola/logout" class="logout"><button type="submit">Salir</button></form>
+<p><a href="/consola/prospectos">Ver prospectos</a></p>
+
+{% for entidad in entidades %}
+{% set resumen = resumenes[entidad.entidad_id] %}
+<div class="match">
+  <strong>{{ entidad.nombre_legal }}</strong>
+  {% if entidad.region %} — {{ entidad.region }}{% endif %}
+  — {{ entidad.enfermedad_o_colectivo }}
+  <div class="motivo">
+    Elegibles: {{ resumen.numero_elegibles }} ·
+    Importe potencial (techo teórico, nunca predicción):
+    {{ resumen.importe_potencial_minimo_centimos|euros }} – {{ resumen.importe_potencial_maximo_centimos|euros }}
+    {% if resumen.numero_elegibles_sin_importe_publicado %}
+      (+{{ resumen.numero_elegibles_sin_importe_publicado }} elegibles sin importe publicado)
+    {% endif %}
+  </div>
+</div>
+{% else %}
+<p>Sin entidades captadas todavía.</p>
+{% endfor %}
+{% endblock %}

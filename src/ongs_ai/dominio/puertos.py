@@ -32,6 +32,11 @@ class RepositorioConvocatorias(Protocol):
 
     def obtener_por_url_origen(self, portal: str, url_origen: str) -> Convocatoria | None: ...
 
+    def listar_convocatorias(self) -> list[Convocatoria]:
+        """Lectura aditiva (ADR-006 §2.7), NO cambio de contrato: la consola
+        del operador necesita el cruce global perfil×convocatoria."""
+        ...
+
 
 @runtime_checkable
 class RepositorioMatches(Protocol):

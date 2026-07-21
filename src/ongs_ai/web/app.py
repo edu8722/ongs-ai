@@ -20,6 +20,9 @@ from starlette.middleware.sessions import SessionMiddleware
 from ongs_ai.adapters.avisos.factory import crear_enviador_enlace_acceso
 from ongs_ai.adapters.persistencia.factory import crear_almacen
 from ongs_ai.web.rutas import auth, panel, propuestas
+from ongs_ai.web.rutas.consola import auth as consola_auth
+from ongs_ai.web.rutas.consola import entidades as consola_entidades
+from ongs_ai.web.rutas.consola import prospectos as consola_prospectos
 
 SEGUNDOS_SESION_30_DIAS = 60 * 60 * 24 * 30
 TTL_TOKEN_DEFECTO = timedelta(minutes=60)
@@ -41,11 +44,14 @@ def crear_app(
     generador_token: Callable[[], str] | None = None,
     reloj: Callable[[], datetime] | None = None,
     ttl_token: timedelta = TTL_TOKEN_DEFECTO,
+    operador_clave: str | None = None,
 ) -> FastAPI:
-    """`secret_key`/`almacen`/`enviador_enlace`/`generador_token`/`reloj` son
-    inyectables (CLAUDE.md: ids/reloj siempre inyectados) — en producción se
-    resuelven vía las factories por entorno; en tests SIEMPRE se pasan
-    explícitos (AlmacenMemoria, EnviadorEnlaceAccesoStub, reloj/token fijos)."""
+    """`secret_key`/`almacen`/`enviador_enlace`/`generador_token`/`reloj`/
+    `operador_clave` son inyectables (CLAUDE.md: ids/reloj siempre
+    inyectados) — en producción se resuelven vía las factories por entorno o
+    `ONGS_AI_OPERADOR_CLAVE`; en tests SIEMPRE se pasan explícitos
+    (AlmacenMemoria, EnviadorEnlaceAccesoStub, reloj/token fijos, clave de
+    operador de prueba)."""
     clave = secret_key if secret_key is not None else os.environ["ONGS_AI_SECRET_KEY"]
 
     app = FastAPI()
@@ -58,10 +64,18 @@ def crear_app(
     app.state.generador_token = generador_token or _generador_token_defecto
     app.state.reloj = reloj or _reloj_utc
     app.state.ttl_token = ttl_token
+    # ADR-006 §2.2: sin clave configurada, la consola del operador no autentica
+    # (no rompe el arranque del tenant por ello) — leída SOLO aquí, como secret_key.
+    app.state.operador_clave = (
+        operador_clave if operador_clave is not None else os.environ.get("ONGS_AI_OPERADOR_CLAVE")
+    )
 
     app.include_router(auth.router)
     app.include_router(panel.router)
     app.include_router(propuestas.router)
+    app.include_router(consola_auth.router)
+    app.include_router(consola_prospectos.router)
+    app.include_router(consola_entidades.router)
     return app
 
 

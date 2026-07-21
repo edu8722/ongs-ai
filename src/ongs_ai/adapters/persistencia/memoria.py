@@ -5,17 +5,20 @@ from datetime import datetime
 
 from ongs_ai.dominio.entidades import Convocatoria, Entidad
 from ongs_ai.dominio.matching_estado import Match
+from ongs_ai.prospeccion.modelo import Prospecto
 
 
 class AlmacenMemoria:
     """Implementa RepositorioEntidades + RepositorioConvocatorias + RepositorioMatches
-    + RepositorioTokensAcceso."""
+    + RepositorioTokensAcceso + RepositorioProspectos (ADR-006 §2.7 — Prospecto es
+    fuera de contrato, pero el mismo almacén físico lo persiste)."""
 
     def __init__(self) -> None:
         self._entidades: dict[str, Entidad] = {}
         self._convocatorias: dict[str, Convocatoria] = {}
         self._matches: dict[str, Match] = {}
         self._tokens_acceso: dict[str, dict] = {}
+        self._prospectos: dict[str, Prospecto] = {}
         self.entidades_duplicadas_por_email = 0
 
     # Entidades ------------------------------------------------------
@@ -53,6 +56,9 @@ class AlmacenMemoria:
                 return convocatoria
         return None
 
+    def listar_convocatorias(self) -> list[Convocatoria]:
+        return list(self._convocatorias.values())
+
     # Matches — SIEMPRE filtrados por entidad_id ----------------------
     def guardar_match(self, match: Match) -> None:
         self._matches[match.match_id] = match
@@ -74,3 +80,13 @@ class AlmacenMemoria:
             return None
         registro["usado"] = True
         return registro["entidad_id"]
+
+    # Prospectos (ADR-006 §2.3/§2.7 — fuera del contrato congelado) ----
+    def guardar_prospecto(self, prospecto: Prospecto) -> None:
+        self._prospectos[prospecto.prospecto_id] = prospecto
+
+    def obtener_prospecto(self, prospecto_id: str) -> Prospecto | None:
+        return self._prospectos.get(prospecto_id)
+
+    def listar_prospectos(self) -> list[Prospecto]:
+        return list(self._prospectos.values())

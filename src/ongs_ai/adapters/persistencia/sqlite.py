@@ -50,6 +50,7 @@ from ongs_ai.dominio.matching_estado import (
     Match,
     ResultadoElegibilidad,
 )
+from ongs_ai.prospeccion.modelo import Prospecto
 
 RAIZ_REPO = Path(__file__).resolve().parents[4]
 RUTA_DB_DEFECTO = RAIZ_REPO / "var" / "ongs_ai.sqlite3"
@@ -196,6 +197,32 @@ def _match_desde_dict(d: dict) -> Match:
     )
 
 
+def _prospecto_desde_dict(d: dict) -> Prospecto:
+    contacto = d.get("contacto")
+    ambito = d.get("ambito_territorial")
+    forma = d.get("forma_juridica")
+    return Prospecto(
+        prospecto_id=d["prospecto_id"],
+        nombre=d["nombre"],
+        web=d.get("web"),
+        ambito_territorial=AmbitoTerritorial(ambito) if ambito is not None else None,
+        region=d.get("region"),
+        provincia=d.get("provincia"),
+        enfermedad_o_colectivo=d.get("enfermedad_o_colectivo"),
+        actividades=tuple(TipoActividad(a) for a in d.get("actividades", ())),
+        forma_juridica=FormaJuridica(forma) if forma is not None else None,
+        contacto=(
+            Contacto(email=contacto.get("email"), telefono=contacto.get("telefono"))
+            if contacto is not None
+            else None
+        ),
+        contacto_personal_nota=d.get("contacto_personal_nota"),
+        tamano=d.get("tamano"),
+        fuente_maestro=d.get("fuente_maestro", ""),
+        notas=d.get("notas"),
+    )
+
+
 _ERRORES_DATO_FEO = (KeyError, ValueError, TypeError, ErrorDominio)
 
 
@@ -261,6 +288,10 @@ class AlmacenSQLite:
         )
         cur.execute(
             "CREATE INDEX IF NOT EXISTS ix_matches_entidad_id ON matches(entidad_id)"
+        )
+        cur.execute(
+            "CREATE TABLE IF NOT EXISTS prospectos ("
+            "prospecto_id TEXT PRIMARY KEY, datos_json TEXT NOT NULL)"
         )
         cur.execute(
             "INSERT OR IGNORE INTO schema_meta (clave, valor) VALUES ('version', ?)",
@@ -383,6 +414,20 @@ class AlmacenSQLite:
             "convocatoria", convocatoria_id, _convocatoria_desde_dict, json.loads(datos_json)
         )
 
+    def listar_convocatorias(self) -> list[Convocatoria]:
+        with self._lock:
+            filas = self._conn.execute(
+                "SELECT convocatoria_id, datos_json FROM convocatorias"
+            ).fetchall()
+        convocatorias = []
+        for convocatoria_id, datos_json in filas:
+            convocatoria = self._decodificar(
+                "convocatoria", convocatoria_id, _convocatoria_desde_dict, json.loads(datos_json)
+            )
+            if convocatoria is not None:
+                convocatorias.append(convocatoria)
+        return convocatorias
+
     # Matches — SIEMPRE filtrados por entidad_id ------------------------
     def guardar_match(self, match: Match) -> None:
         payload = json.dumps(asdict(match), default=_codificar_json, ensure_ascii=False)
@@ -436,3 +481,39 @@ class AlmacenSQLite:
                 "SELECT entidad_id FROM tokens_acceso WHERE token_hash = ?", (token_hash,)
             ).fetchone()
             return fila[0] if fila else None
+
+    # Prospectos (ADR-006 §2.3/§2.7 — fuera del contrato congelado) ----
+    def guardar_prospecto(self, prospecto: Prospecto) -> None:
+        payload = json.dumps(asdict(prospecto), default=_codificar_json, ensure_ascii=False)
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO prospectos (prospecto_id, datos_json) VALUES (?, ?) "
+                "ON CONFLICT(prospecto_id) DO UPDATE SET datos_json = excluded.datos_json",
+                (prospecto.prospecto_id, payload),
+            )
+            self._conn.commit()
+
+    def obtener_prospecto(self, prospecto_id: str) -> Prospecto | None:
+        with self._lock:
+            fila = self._conn.execute(
+                "SELECT datos_json FROM prospectos WHERE prospecto_id = ?", (prospecto_id,)
+            ).fetchone()
+        if fila is None:
+            return None
+        return self._decodificar(
+            "prospecto", prospecto_id, _prospecto_desde_dict, json.loads(fila[0])
+        )
+
+    def listar_prospectos(self) -> list[Prospecto]:
+        with self._lock:
+            filas = self._conn.execute(
+                "SELECT prospecto_id, datos_json FROM prospectos"
+            ).fetchall()
+        prospectos = []
+        for prospecto_id, datos_json in filas:
+            prospecto = self._decodificar(
+                "prospecto", prospecto_id, _prospecto_desde_dict, json.loads(datos_json)
+            )
+            if prospecto is not None:
+                prospectos.append(prospecto)
+        return prospectos

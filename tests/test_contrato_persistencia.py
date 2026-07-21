@@ -33,6 +33,8 @@ from ongs_ai.dominio.puertos import (
     RepositorioMatches,
     RepositorioTokensAcceso,
 )
+from ongs_ai.prospeccion.modelo import Prospecto
+from ongs_ai.prospeccion.puertos import RepositorioProspectos
 
 T0 = datetime(2026, 7, 18, tzinfo=timezone.utc)
 
@@ -267,3 +269,82 @@ def test_token_expirado_falla(almacen):
 
 def test_token_inexistente_falla(almacen):
     assert almacen.consumir_token("hash-que-no-existe", T0) is None
+
+
+# --- listar_convocatorias (ADR-006 §2.7 — lectura aditiva) ----------------
+
+
+def test_listar_convocatorias_sin_convocatorias_devuelve_lista_vacia(almacen):
+    assert almacen.listar_convocatorias() == []
+
+
+def test_listar_convocatorias_devuelve_todas_las_guardadas(almacen):
+    conv_a = _convocatoria("conv-listar-a")
+    conv_b = dataclasses.replace(_convocatoria("conv-listar-b"), objeto="Otro objeto")
+    almacen.guardar_convocatoria(conv_a)
+    almacen.guardar_convocatoria(conv_b)
+
+    listadas = almacen.listar_convocatorias()
+
+    assert {c.convocatoria_id for c in listadas} == {"conv-listar-a", "conv-listar-b"}
+
+
+# --- RepositorioProspectos (ADR-006 §2.3/§2.7 — fuera del contrato) -------
+
+
+def _prospecto(prospecto_id: str = "prospecto-contrato-1") -> Prospecto:
+    return Prospecto(
+        prospecto_id=prospecto_id,
+        nombre="Asociación de Prueba de Prospección",
+        web="https://prospecto.example.org",
+        ambito_territorial=AmbitoTerritorial.AUTONOMICO,
+        region="Andalucía",
+        enfermedad_o_colectivo="colectivo de prospección",
+        actividades=(TipoActividad.VOLUNTARIADO,),
+        forma_juridica=FormaJuridica.ASOCIACION,
+        contacto=Contacto(email="prospecto@example.org", telefono="600000000"),
+        contacto_personal_nota="persona de contacto (sintética, nunca real)",
+        tamano="pequeña",
+        fuente_maestro="Fuente sintética",
+        notas="notas de prueba",
+    )
+
+
+def test_roundtrip_prospecto(almacen):
+    assert isinstance(almacen, RepositorioProspectos)
+    prospecto = _prospecto()
+    almacen.guardar_prospecto(prospecto)
+
+    obtenido = almacen.obtener_prospecto(prospecto.prospecto_id)
+
+    assert obtenido == prospecto
+
+
+def test_obtener_prospecto_inexistente_devuelve_none(almacen):
+    assert almacen.obtener_prospecto("no-existe") is None
+
+
+def test_listar_prospectos_sin_prospectos_devuelve_lista_vacia(almacen):
+    assert almacen.listar_prospectos() == []
+
+
+def test_listar_prospectos_devuelve_todos_los_guardados(almacen):
+    prospecto_a = _prospecto("prospecto-listar-a")
+    prospecto_b = dataclasses.replace(_prospecto("prospecto-listar-b"), nombre="Otra asociación")
+    almacen.guardar_prospecto(prospecto_a)
+    almacen.guardar_prospecto(prospecto_b)
+
+    listados = almacen.listar_prospectos()
+
+    assert {p.prospecto_id for p in listados} == {"prospecto-listar-a", "prospecto-listar-b"}
+
+
+def test_prospecto_con_campos_opcionales_vacios_roundtrip(almacen):
+    """Solo prospecto_id y nombre son obligatorios (ADR-006 §2.3) — el resto
+    puede faltar por completo (maestro parcial)."""
+    minimo = Prospecto(prospecto_id="prospecto-minimo", nombre="Asociación Mínima")
+    almacen.guardar_prospecto(minimo)
+
+    obtenido = almacen.obtener_prospecto("prospecto-minimo")
+
+    assert obtenido == minimo

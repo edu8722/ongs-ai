@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block titulo %}Prospectos — Consola ONGs-AI{% endblock %}
+{% block contenido %}
+<h1>Prospectos ({{ prospectos|length }})</h1>
+<form method="post" action="/consola/logout" class="logout"><button type="submit">Salir</button></form>
+<p><a href="/consola/entidades">Ver entidades captadas</a></p>
+
+{% for prospecto in prospectos %}
+{% set resumen = resumenes[prospecto.prospecto_id] %}
+<div class="match">
+  <strong>{{ prospecto.nombre }}</strong>
+  {% if prospecto.region %} — {{ prospecto.region }}{% endif %}
+  {% if prospecto.enfermedad_o_colectivo %} — {{ prospecto.enfermedad_o_colectivo }}{% endif %}
+  <div class="motivo">
+    Elegibles: {{ resumen.numero_elegibles }} ·
+    Importe potencial (techo teórico, nunca predicción):
+    {{ resumen.importe_potencial_minimo_centimos|euros }} – {{ resumen.importe_potencial_maximo_centimos|euros }}
+    {% if resumen.numero_elegibles_sin_importe_publicado %}
+      (+{{ resumen.numero_elegibles_sin_importe_publicado }} elegibles sin importe publicado)
+    {% endif %}
+  </div>
+  {% if prospecto.contacto and prospecto.contacto.email %}
+    <div>Contacto: {{ prospecto.contacto.email }}</div>
+  {% endif %}
+  {% if prospecto.web %}
+    <div>Web: {{ prospecto.web }}</div>
+  {% endif %}
+</div>
+{% else %}
+<p>Sin prospectos importados todavía — ejecuta <code>scripts/importar_prospectos.py</code>.</p>
+{% endfor %}
+{% endblock %}
