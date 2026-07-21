@@ -11,12 +11,16 @@ from fastapi.templating import Jinja2Templates
 
 from ongs_ai.dominio.entidades import Entidad
 from ongs_ai.servicios.panel import resumen_panel
-from ongs_ai.web.dependencias import entidad_actual
+from ongs_ai.web.dependencias import entidad_actual, token_csrf
 
 router = APIRouter()
 
 _RAIZ_PLANTILLAS = Path(__file__).resolve().parent.parent / "plantillas"
 _plantillas = Jinja2Templates(directory=str(_RAIZ_PLANTILLAS))
+
+MENSAJE_AVISO_TRANSICION = (
+    "No se ha podido completar la acción; es posible que ya estuviera procesada."
+)
 
 
 def _euros(centimos: int) -> str:
@@ -29,7 +33,7 @@ _plantillas.env.filters["euros"] = _euros
 
 
 @router.get("/panel")
-def panel(request: Request, entidad: Entidad = Depends(entidad_actual)):
+def panel(request: Request, entidad: Entidad = Depends(entidad_actual), aviso: str | None = None):
     almacen = request.app.state.almacen
     resumen = resumen_panel(entidad.entidad_id, almacen)
 
@@ -50,5 +54,11 @@ def panel(request: Request, entidad: Entidad = Depends(entidad_actual)):
     return _plantillas.TemplateResponse(
         request,
         "panel.html",
-        {"entidad": entidad, "resumen": resumen, "convocatorias": convocatorias},
+        {
+            "entidad": entidad,
+            "resumen": resumen,
+            "convocatorias": convocatorias,
+            "csrf_token": token_csrf(request),
+            "mensaje_aviso": MENSAJE_AVISO_TRANSICION if aviso else None,
+        },
     )

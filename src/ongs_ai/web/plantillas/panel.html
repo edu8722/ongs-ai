@@ -6,7 +6,9 @@
   <button type="submit">Cerrar sesión</button>
 </form>
 
-{% macro lista_matches(titulo, matches, mostrar_motivo=False) %}
+{% if mensaje_aviso %}<p class="mensaje">{{ mensaje_aviso }}</p>{% endif %}
+
+{% macro lista_matches(titulo, matches, mostrar_motivo=False, mostrar_acciones=False) %}
 <section class="cubo">
   <h2>{{ titulo }} ({{ matches|length }})</h2>
   {% if matches %}
@@ -30,6 +32,20 @@
         {% if mostrar_motivo and match.resultado_elegibilidad_dura %}
           <div class="motivo">Motivo: {{ match.resultado_elegibilidad_dura.detalle }}</div>
         {% endif %}
+        {% if mostrar_acciones %}
+          <div class="acciones">
+            <form method="post" action="/panel/propuestas/aceptar">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="match_id" value="{{ match.match_id }}">
+              <button type="submit">Aceptar</button>
+            </form>
+            <form method="post" action="/panel/propuestas/descartar">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="match_id" value="{{ match.match_id }}">
+              <button type="submit">Descartar</button>
+            </form>
+          </div>
+        {% endif %}
       </div>
     {% endfor %}
   {% else %}
@@ -38,7 +54,7 @@
 </section>
 {% endmacro %}
 
-{{ lista_matches("Propuestas pendientes", resumen.propuestas_pendientes) }}
+{{ lista_matches("Propuestas pendientes", resumen.propuestas_pendientes, mostrar_acciones=True) }}
 {{ lista_matches("Aceptadas", resumen.aceptadas) }}
 {{ lista_matches("En preparación", resumen.en_preparacion) }}
 {{ lista_matches("Presentadas", resumen.presentadas) }}

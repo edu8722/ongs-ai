@@ -142,11 +142,16 @@ def test_panel_muestra_los_datos_de_la_propia_entidad():
 
 
 def test_panel_no_expone_ids_internos():
+    # Match en un cubo SIN acciones (aceptar/descartar solo van en
+    # propuestas_pendientes, F-web.2): ahí sí es necesario y legítimo que
+    # match_id viaje como campo oculto del formulario de la propia entidad.
     almacen = AlmacenMemoria()
     entidad = _entidad("panel-ent-2", "panel2@example.org", "Fundación del Panel")
     almacen.guardar_entidad(entidad)
     almacen.guardar_convocatoria(_convocatoria("panel-conv-2", "Subvención de respiro familiar"))
-    almacen.guardar_match(_match_propuesta("panel-match-3", entidad.entidad_id, "panel-conv-2"))
+    almacen.guardar_match(
+        _match_no_elegible("panel-match-3", entidad.entidad_id, "panel-conv-2", "motivo interno")
+    )
 
     client = _cliente_logueado(almacen, entidad)
     resp = client.get("/panel")

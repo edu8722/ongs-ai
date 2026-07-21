@@ -2,6 +2,21 @@
 
 ## Semana 2026-07-20/26
 
+- **PROMPT-014 — F-web.1: esqueleto web + auth magic link + panel** (Sonnet) —
+  **HECHO 06418f3, APROBADO (auditoría del arquitecto), 214 tests. F-web.1 CERRADA.**
+  Deps runtime primeras (fastapi 0.139.0, uvicorn 0.49.0, jinja2 3.1.6, itsdangerous
+  2.2.0, python-multipart 0.0.32; httpx 0.28.1 dev). Puertos aditivos
+  (obtener_entidad_por_email con dedupe→None+contador; RepositorioTokensAcceso
+  atómico un-solo-uso) en ambos backends con tests de contrato;
+  servicios/autenticacion.py (TTL 60 min, hash sha256, anti-enumeración);
+  EnviadorEnlaceAccesoSMTP; web/ completo (app.py solo-includes con max_age 30 días
+  y SECRET_KEY solo en composición; entidad_actual única fuente de tenant; rutas sin
+  entidad_id; plantillas autoescape; filtro euros por divmod sin float). Anti-fuga
+  cross-tenant a nivel HTTP (incl. intento por query param). Desviaciones aprobadas:
+  app condicional a SECRET_KEY (no dispara factories reales al importar en tests);
+  ONGS_AI_APP_BASE_URL nueva variable para construir el enlace; CLAUDE.md sin tocar
+  (fuera de mandato — el comando de servidor lo fija F-web.2).
+
 - **PROMPT-013 — ADR-005: esqueleto web + auth multi-tenant** (Opus) — **HECHO
   a4c80ab, APROBADO (auditoría del arquitecto, 447 líneas leídas), 184 tests (sin
   código).** FastAPI+uvicorn+Jinja2 SSR sin SPA; magic link sin contraseñas

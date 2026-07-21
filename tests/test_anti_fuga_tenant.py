@@ -151,4 +151,7 @@ def test_http_entidad_a_logueada_no_ve_matches_de_b_ni_via_query_param():
     assert resp.status_code == 200
     assert "match-http-B" not in resp.text
     assert entidad_b.entidad_id not in resp.text
-    assert "match-http-A" not in resp.text  # tampoco se exponen ids internos propios
+    # match-http-A SÍ aparece: es de la propia entidad A y está en
+    # propuestas_pendientes, cubo con acciones aceptar/descartar (F-web.2) —
+    # el match_id viaja en un campo oculto del formulario para poder
+    # someterlo. Lo que nunca debe aparecer es el id/match de OTRA entidad.

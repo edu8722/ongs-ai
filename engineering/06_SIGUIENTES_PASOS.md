@@ -70,18 +70,17 @@ siguiente acción según este documento.
 
 ## ESTADO VIVO
 
-- **2026-07-21 — ADR-005 ACEPTADO Y AUDITADO: HECHO a4c80ab.** Esqueleto web
-  FastAPI+Jinja2 SSR y auth por magic link con aislamiento cross-tenant POR
-  CONSTRUCCIÓN (la sesión firmada es la única fuente de entidad_id). Decisiones del
-  operador: sesión 30 días · enlace válido 1 h · hosting/TLS al captar piloto (HTTPS
-  obligatorio antes de acceso real) · resto de defaults del §7 aceptados. Detalle →
-  histórico. **SIGUIENTE: PROMPT-014 (F-web.1) EN COLA.** Tras su cierre: F-web.2
-  (aceptar/descartar + CSRF) y luego F5.
+- **2026-07-21 — F-web.1 CERRADA Y AUDITADA: APROBADO, HECHO 06418f3, 214 tests,
+  pushed. LA APP EXISTE:** login por magic link + panel por tenant, aislamiento por
+  construcción verificado a nivel HTTP. Primeras deps runtime instaladas (versiones
+  exactas en histórico). Variables de entorno requeridas en producción:
+  ONGS_AI_SECRET_KEY, ONGS_AI_APP_BASE_URL, ONGS_AI_SMTP_*. Detalle → histórico.
   **Estado de fases: F1 ✔ · ADR-002 ✔ · F3 ✔ · F2+fix ✔ · F4.1 ✔ · F4.2 ✔ ·
-  utilidades ✔ · ADR-005 ✔ · F-web.1 EN COLA.**
-- PROMPT-012 (6457682, 184 t): panel completo, gitignore blindado, scraper FEDER —
-  techo real del listado ~272/476; **maestro de prospección v3 = 511 entidades**
-  (fuera de git). F4.1 (9f8c732) y F4.2 (fb95b4a) cerradas. Detalle → histórico.
+  utilidades ✔ · ADR-005 ✔ · F-web.1 ✔ · SIGUIENTE: PROMPT-015 (F-web.2:
+  aceptar/descartar + CSRF + comando servidor en CLAUDE.md) · Después: F5.**
+- ADR-005 (a4c80ab) aceptado con decisiones del operador: sesión 30 días · enlace
+  1 h · hosting/TLS al captar piloto. PROMPT-012 (6457682): scraper FEDER, techo
+  ~272/476; **maestro de prospección v3 = 511 entidades** (fuera de git). Histórico.
 - **2026-07-21 — INCIDENTE DE PIZARRA, resuelto:** el mount pisó el 06 del disco con
   una copia del día 18 (commiteada sin querer en 61d76a4). Recuperado desde
   `9f8c732` + cierre de F4.1. Consecuencia: regla nueva de gobernanza en el
@@ -182,11 +181,7 @@ Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
 `git status` antes del add, `git push` al terminar.
 ```
 
-#### PROMPT-014 — F-web.1: esqueleto web + auth (magic link) + panel de solo lectura · MODELO: Sonnet · ORDEN: 1º (nada en paralelo)
-
-> Es el prompt de ADR-005 §6 con las decisiones del operador incorporadas:
-> TTL del enlace = 1 HORA (no 15 min) y sesión de 30 DÍAS (max_age de la
-> cookie). El texto de abajo ya las lleva — cópialo tal cual.
+#### PROMPT-015 — F-web.2: aceptar/descartar con CSRF + comando de servidor en CLAUDE.md · MODELO: Sonnet · ORDEN: 1º (nada en paralelo)
 
 ```
 POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda
@@ -203,98 +198,66 @@ arquitecto: no cierres items, no te declares APROBADO, no muevas nada al
 histórico — limítate a incluir en tu commit los cambios de
 engineering/06_* que ya estén en el working tree, tal cual estén.
 
-TAREA: F-web.1 del ADR-005 (léelo entero: engineering/ADR-005-esqueleto-
-web-y-auth.md). Construye el esqueleto de la app web, la autenticación
-multi-tenant por magic link y el panel de solo lectura sobre
-`servicios/panel.py::resumen_panel`. NO toques el contrato
-(dominio/entidades.py, matching_estado.py) ni implementes aceptar/descartar
-(F-web.2, prompt aparte). DECISIONES DEL OPERADOR ya tomadas sobre el §7
-del ADR (aplícalas donde este prompt difiera del ADR): TTL del enlace =
-60 MINUTOS; sesión = 30 DÍAS (max_age de la cookie de sesión); rutas en
-español; SECRET_KEY por variable de entorno.
+TAREA: F-web.2 del ADR-005 (§6, orientación) — las acciones
+aceptar/descartar de una propuesta desde el panel, con CSRF, más fijar el
+comando de servidor en CLAUDE.md. NO toques el contrato ni la máquina de
+estados (solo LLAMAS a `transicionar`, jamás la modificas).
 
-1. Dependencias — añade a `pyproject.toml` (`[project]`): `fastapi>=0.115`,
-   `uvicorn>=0.30`, `jinja2>=3.1`, `itsdangerous>=2.2`,
-   `python-multipart>=0.0.9`; a `[project.optional-dependencies].dev`:
-   `httpx>=0.27` (junto a pytest). Instala y anota en el resumen final la
-   versión EXACTA resuelta de cada una (pip freeze), sin inventarla.
+1. CSRF — token de formulario firmado ligado a la sesión (usa
+   itsdangerous, ya presente; o token aleatorio guardado en sesión y
+   comparado en constante). Helper en `web/dependencias.py` + inclusión en
+   las plantillas como campo oculto. TODO POST que mute estado de negocio
+   lo exige; POST sin token o con token inválido → 403 genérico.
 
-2. Puerto — `dominio/puertos.py`:
-   a. `RepositorioEntidades` gana `obtener_entidad_por_email(email: str)
-      -> Entidad | None`. Implementa en `AlmacenMemoria` y `AlmacenSQLite`
-      (ALTER TABLE/índice si hace falta, idempotente). Test de contrato
-      parametrizado sobre ambos backends (existe / no existe / email
-      duplicado entre entidades — comportamiento conservador: duplicado =
-      login ambiguo, devuelve None y cuenta el caso).
-   b. Puerto nuevo `RepositorioTokensAcceso`: `crear_token(entidad_id,
-      token_hash, expira_en)`, `consumir_token(token_hash, ahora) ->
-      str | None` (atómico, un solo uso). Implementa en ambos backends
-      (tabla `tokens_acceso` en SQLite, dict en memoria). Test de contrato
-      parametrizado: válido se consume una vez y la segunda falla;
-      expirado falla; inexistente falla.
+2. Rutas — `web/rutas/propuestas.py` (módulo NUEVO; `app.py` solo gana su
+   include_router):
+   - `POST /panel/propuestas/aceptar` y `POST /panel/propuestas/descartar`
+     con `entidad = Depends(entidad_actual)`, `match_id` como campo de
+     formulario y token CSRF.
+   - PROPIEDAD DEL MATCH — crítico: resuelve el match EXCLUSIVAMENTE
+     buscando `match_id` dentro de
+     `almacen.listar_matches_por_entidad(entidad.entidad_id)` — JAMÁS un
+     acceso global por match_id. Si no está ahí (no existe O es de otra
+     entidad): 404 con página genérica — la MISMA respuesta en ambos casos
+     (no confirmes a un atacante que el id existe).
+   - Transición: `transicionar(match, a_estado=ACEPTADA|DESCARTADA,
+     actor=ActorAsiento.ENTIDAD, motivo="aceptada|descartada por la entidad
+     desde el panel", ids/reloj inyectados vía app.state como en F4)`. Una
+     transición ilegal (p. ej. aceptar algo ya descartado — doble submit)
+     NO revienta: captura TransicionIlegalError → redirect a /panel con
+     mensaje neutro. `guardar_match` y redirect 303 a /panel.
+   - En `panel.html`: botones Aceptar/Descartar SOLO en el cubo
+     propuestas_pendientes (formularios POST con CSRF; nada de enlaces GET
+     que muten estado).
 
-3. Servicio — `servicios/autenticacion.py` (compone puertos, como
-   `servicios/propuestas.py`):
-   - `generar_y_enviar_enlace(email, almacen_entidades, almacen_tokens,
-     enviador_email, *, generador_token, reloj,
-     ttl=timedelta(minutes=60))`: busca por email; si existe, genera token
-     (generador_token inyectable, no secrets implícito), guarda su HASH
-     (sha256) con expiración, envía el enlace. Si NO existe: no hace nada —
-     el llamador HTTP responde igual en ambos casos (anti enumeración).
-   - `validar_y_consumir_token(token, almacen_tokens, reloj) -> str | None`.
-   - Envío en try/except: degrada limpio (log + contador); error
-     controlado hacia la ruta (mensaje genérico), nunca un 500 crudo.
+3. CLAUDE.md — sección "Comandos": sustituye la línea "Servidor local:
+   PENDIENTE…" por `uvicorn ongs_ai.web.app:app --reload` y añade una
+   línea con las variables de entorno requeridas para arrancar en real
+   (ONGS_AI_SECRET_KEY, ONGS_AI_APP_BASE_URL, ONGS_AI_SMTP_*) señalando
+   que en tests todo va inyectado/stub. NADA MÁS de CLAUDE.md se toca.
 
-4. Adapter — `adapters/avisos/`: clase de envío del enlace de acceso
-   (reutiliza `ClienteSMTP`/`ConfiguracionSMTP`/fábrica de `email_smtp.py`;
-   plantilla de texto plano propia, función pura testeable, sin datos
-   internos). Factory: extiende `adapters/avisos/factory.py`
-   (entorno='test' -> stub).
+4. Tests (TestClient, herméticos): aceptar y descartar felices (el match
+   cambia de cubo tras el redirect); POST sin CSRF → 403; match de OTRA
+   entidad → 404 idéntico al inexistente (anti-fuga de existencia); doble
+   submit/transición ilegal → redirect con mensaje neutro, sin 500 y sin
+   asiento nuevo; los GET siguen sin mutar nada; suite completa VERDE.
 
-5. Web — `src/ongs_ai/web/` (estructura EXACTA del ADR §2.1):
-   - `app.py`: ÚNICO fichero central. FastAPI() + SessionMiddleware
-     (clave desde ONGS_AI_SECRET_KEY leída SOLO aquí — en tests inyectada
-     explícita, NUNCA del .env de la máquina; max_age de sesión = 30 días)
-     + include_router de rutas/auth.py y rutas/panel.py. Sin lógica.
-   - `dependencias.py`: `entidad_actual(request) -> Entidad` — única
-     fuente de entidad_id (desde la sesión firmada); sesión ausente/
-     corrupta/caducada o entidad inexistente → redirect a /login o 401
-     genérico, nunca fallback silencioso.
-   - `rutas/auth.py`: GET /login, POST /login (respuesta genérica SIEMPRE,
-     exista o no el email), GET /login/confirmar (consume token → sesión →
-     /panel; fallo → error genérico sin motivo), POST /logout.
-   - `rutas/panel.py`: GET /panel con `entidad = Depends(entidad_actual)`;
-     `resumen_panel(entidad.entidad_id, almacen)`; renderiza los 6 cubos
-     con los nombres EXACTOS de ResumenPanel. NINGÚN parámetro de
-     ruta/query/form acepta un entidad_id.
-   - `plantillas/`: Jinja2 con autoescape (NO desactivar — el texto de
-     convocatorias viene de extracción IA y no es confiable). base + login
-     + panel + error genérico. Sin CDN de terceros; CSS inline mínimo.
-
-6. Tests (test_web_auth.py, test_web_panel.py + ampliación de
-   test_anti_fuga_tenant.py) con TestClient, HERMÉTICOS (SMTP siempre
-   stub): login feliz completo; email inexistente → MISMA respuesta y cero
-   envíos; token usado/caducado/inventado → error genérico sin sesión;
-   /panel sin sesión → login; ANTI-FUGA HTTP (A logueada con matches de A
-   y B sembrados → /panel solo muestra A; ninguna ruta acepta entidad_id);
-   logout invalida sesión; plantilla del enlace sin campos internos.
-
-7. Chequeo sintáctico de cada .py tocado. `python -m pytest -q` VERDE y
-   HERMÉTICO con el nº REAL de tests.
-
-Incluye en tu commit los cambios de engineering/06_* del working tree,
-tal cual están (cierre de ADR-005 por el arquitecto).
+5. Chequeo sintáctico de cada .py tocado. `python -m pytest -q` VERDE con
+   el nº REAL de tests. Incluye engineering/06_* del working tree tal cual
+   (cierre de F-web.1 por el arquitecto).
 
 Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
-`git status` antes del add (ni .env, ni var/, ni ONGS_AI_SECRET_KEY en
-ningún fichero), `git push` al terminar.
+`git status` antes del add, `git push` al terminar.
 ```
 
 ### Bandeja del OPERADOR
 
-- Pegar PROMPT-014 (F-web.1, Sonnet) en Claude Code y avisar para auditoría. Al
-  cerrarse: `uvicorn ongs_ai.web.app:app --reload` y mirar el panel en el navegador —
-  primera verificación humana visual del producto.
+- **VER LA APP (5 min, ya puedes):** en tu terminal —
+  `set ONGS_AI_ENV=test && set ONGS_AI_SECRET_KEY=prueba-local && uvicorn ongs_ai.web.app:app --reload`
+  y abre http://localhost:8000/login — primera verificación visual del producto.
+  (Con ONGS_AI_ENV=test usa almacén en memoria y SMTP stub: el enlace no llega por
+  correo real, saldrá en consola/log — suficiente para verla.)
+- Pegar PROMPT-015 (F-web.2, Sonnet) en Claude Code y avisar para auditoría.
 - `python scripts/smoke_email.py` cuando tengas buzón/credenciales SMTP (variables
   ONGS_AI_SMTP_*) — verifica el aviso por email real. Puede esperar.
 - Cuando haya relación con FEDER (p. ej. vía piloto): pedirles el censo completo de

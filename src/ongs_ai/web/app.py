@@ -19,7 +19,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from ongs_ai.adapters.avisos.factory import crear_enviador_enlace_acceso
 from ongs_ai.adapters.persistencia.factory import crear_almacen
-from ongs_ai.web.rutas import auth, panel
+from ongs_ai.web.rutas import auth, panel, propuestas
 
 SEGUNDOS_SESION_30_DIAS = 60 * 60 * 24 * 30
 TTL_TOKEN_DEFECTO = timedelta(minutes=60)
@@ -61,6 +61,7 @@ def crear_app(
 
     app.include_router(auth.router)
     app.include_router(panel.router)
+    app.include_router(propuestas.router)
     return app
 
 

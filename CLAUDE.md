@@ -33,7 +33,9 @@ Plan operativo vigente y prompts por paso: `engineering/06_SIGUIENTES_PASOS.md`.
 - Tests/CI: `python -m pytest -q` (debe salir VERDE antes de CUALQUIER commit; tests
   HERMÉTICOS: sin red, sin depender del .env de la máquina — los adapters de red van
   apagados en tests).
-- Servidor local: PENDIENTE — se fija en el prompt del esqueleto de la app (PROMPT-002).
+- Servidor local: `uvicorn ongs_ai.web.app:app --reload` (variables de entorno para
+  arrancar en real: `ONGS_AI_SECRET_KEY`, `ONGS_AI_APP_BASE_URL`, `ONGS_AI_SMTP_*`; en
+  tests todo va inyectado/stub, nunca del .env de la máquina).
 
 ## Ritual de cierre de CADA tarea
 
