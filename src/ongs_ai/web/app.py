@@ -21,7 +21,10 @@ from starlette.staticfiles import StaticFiles
 
 from ongs_ai.adapters.avisos.factory import crear_enviador_enlace_acceso
 from ongs_ai.adapters.persistencia.factory import crear_almacen
+from ongs_ai.servicios.estado_ejecucion import RegistroEjecucion, lanzador_hilo_produccion
+from ongs_ai.servicios.pasada_ingesta import crear_ejecutor_pasada_completa, crear_ejecutor_recalculo
 from ongs_ai.web.rutas import auth, panel, propuestas
+from ongs_ai.web.rutas.consola import acciones as consola_acciones
 from ongs_ai.web.rutas.consola import auth as consola_auth
 from ongs_ai.web.rutas.consola import convocatorias as consola_convocatorias
 from ongs_ai.web.rutas.consola import cruce as consola_cruce
@@ -52,13 +55,22 @@ def crear_app(
     reloj: Callable[[], datetime] | None = None,
     ttl_token: timedelta = TTL_TOKEN_DEFECTO,
     operador_clave: str | None = None,
+    ejecutor_pasada_completa: Callable[[], object] | None = None,
+    ejecutor_recalculo: Callable[[], object] | None = None,
+    lanzador_hilo: Callable[[Callable[[], None]], None] | None = None,
 ) -> FastAPI:
     """`secret_key`/`almacen`/`enviador_enlace`/`generador_token`/`reloj`/
     `operador_clave` son inyectables (CLAUDE.md: ids/reloj siempre
     inyectados) — en producción se resuelven vía las factories por entorno o
     `ONGS_AI_OPERADOR_CLAVE`; en tests SIEMPRE se pasan explícitos
     (AlmacenMemoria, EnviadorEnlaceAccesoStub, reloj/token fijos, clave de
-    operador de prueba)."""
+    operador de prueba).
+
+    `ejecutor_pasada_completa`/`ejecutor_recalculo`/`lanzador_hilo` (PROMPT-026
+    B5) son la MISMA idea aplicada a las acciones de la consola: en
+    producción son el cableado real (red BDNS + CLI de Claude + hilo de
+    fondo real, `ongs_ai.servicios.pasada_ingesta`/`estado_ejecucion`); en
+    tests SIEMPRE stubs síncronos (sin hilos ni red ni CLI real)."""
     clave = secret_key if secret_key is not None else os.environ["ONGS_AI_SECRET_KEY"]
 
     app = FastAPI()
@@ -76,6 +88,20 @@ def crear_app(
     app.state.operador_clave = (
         operador_clave if operador_clave is not None else os.environ.get("ONGS_AI_OPERADOR_CLAVE")
     )
+
+    # PROMPT-026 B2/B3/B5: registro + candado de la última pasada lanzada
+    # desde la web, y el cableado (real en producción, stub en tests) de las
+    # dos acciones del operador.
+    app.state.registro_ejecucion = RegistroEjecucion()
+    app.state.ejecutor_pasada_completa = (
+        ejecutor_pasada_completa
+        if ejecutor_pasada_completa is not None
+        else crear_ejecutor_pasada_completa(app.state.almacen)
+    )
+    app.state.ejecutor_recalculo = (
+        ejecutor_recalculo if ejecutor_recalculo is not None else crear_ejecutor_recalculo(app.state.almacen)
+    )
+    app.state.lanzador_hilo = lanzador_hilo or lanzador_hilo_produccion
 
     # StaticFiles SOLO para la consola (PROMPT-021 A1) — nunca montado bajo
     # una ruta de tenant.
@@ -95,6 +121,7 @@ def crear_app(
     app.include_router(consola_convocatorias.router)
     app.include_router(consola_cruce.router)
     app.include_router(consola_mapa.router)
+    app.include_router(consola_acciones.router)
     return app
 
 

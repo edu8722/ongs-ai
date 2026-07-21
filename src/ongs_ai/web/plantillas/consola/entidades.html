@@ -8,9 +8,16 @@
 <form class="buscador" method="get" action="/consola/entidades">
   <input type="search" name="q" placeholder="Buscar por nombre…" value="{{ filtro_q }}" aria-label="Buscar por nombre">
   <input type="text" name="ccaa" placeholder="CCAA…" value="{{ filtro_ccaa }}" aria-label="Filtrar por comunidad autónoma">
+  <select name="tipo" aria-label="Filtrar por tipo">
+    <option value="" {% if not filtro_tipo %}selected{% endif %}>Captadas y candidatas</option>
+    <option value="captadas" {% if filtro_tipo == "captadas" %}selected{% endif %}>Solo captadas</option>
+    <option value="candidatas" {% if filtro_tipo == "candidatas" %}selected{% endif %}>Solo candidatas</option>
+  </select>
   <button type="submit">Buscar</button>
+  {% if filtro_q or filtro_ccaa or filtro_tipo %}<a class="chip" href="/consola/entidades">Limpiar filtros</a>{% endif %}
 </form>
 
+{% if mostrar_entidades %}
 <div class="section-h"><h2>Entidades captadas ({{ filas_entidades|length }})</h2></div>
 <div class="grid">
   {% for fila in filas_entidades %}
@@ -34,10 +41,16 @@
     </div>
   </a>
   {% else %}
+  {% if filtro_q or filtro_ccaa %}
+  <div class="empty">Sin entidades captadas que coincidan con el filtro.</div>
+  {% else %}
   <div class="empty">Sin entidades captadas todavía.</div>
+  {% endif %}
   {% endfor %}
 </div>
+{% endif %}
 
+{% if mostrar_prospectos %}
 <div class="section-h"><h2>Candidatas — prospectos ({{ filas_prospectos|length }})</h2></div>
 <div class="grid">
   {% for fila in filas_prospectos %}
@@ -64,7 +77,12 @@
     {% endif %}
   </a>
   {% else %}
+  {% if filtro_q or filtro_ccaa %}
+  <div class="empty">Sin candidatas que coincidan con el filtro.</div>
+  {% else %}
   <div class="empty">Sin prospectos importados todavía — ejecuta <code>scripts/preparar_demo.py</code> o <code>scripts/importar_prospectos.py</code>.</div>
+  {% endif %}
   {% endfor %}
 </div>
+{% endif %}
 {% endblock %}

@@ -7,10 +7,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
 
+from ongs_ai.dominio.entidades import normalizar_texto_comparacion
 from ongs_ai.servicios.afinidad import resumen_prospeccion
 from ongs_ai.web.dependencias_operador import operador_actual, solo_loopback
 from ongs_ai.web.rutas.consola._soporte import (
     clave_perfil,
+    coincide_texto,
     convocatoria_vigente,
     convocatorias_utiles,
     crear_plantillas,
@@ -24,7 +26,7 @@ _plantillas = crear_plantillas()
 
 
 @router.get("")
-def dashboard(request: Request):
+def dashboard(request: Request, ccaa: str | None = None):
     almacen = request.app.state.almacen
     hoy = request.app.state.reloj().date()
 
@@ -39,7 +41,12 @@ def dashboard(request: Request):
     importe_potencial_agregado = sum(r.importe_potencial_maximo_centimos for r in resumenes)
     convocatorias_vivas = sum(1 for c in convocatorias if convocatoria_vigente(c, hoy))
 
-    cruces = mejores_cruces(perfiles, convocatorias, hoy, limite=6)
+    # A4: el filtro de CCAA solo afecta a "oportunidades más afines" — las
+    # métricas agregadas de arriba siguen siendo GLOBALES.
+    ccaa_norm = normalizar_texto_comparacion(ccaa) if ccaa else None
+    perfiles_para_oportunidades = [p for p in perfiles if coincide_texto(p.region, ccaa_norm)]
+
+    cruces = mejores_cruces(perfiles_para_oportunidades, convocatorias, hoy, limite=6)
     oportunidades = [
         {
             "perfil_nombre": nombre_perfil(perfil),
@@ -62,5 +69,7 @@ def dashboard(request: Request):
             "importe_potencial_agregado": importe_potencial_agregado,
             "oportunidades": oportunidades,
             "numero_descartadas": numero_descartadas,
+            "filtro_ccaa": ccaa or "",
+            "estado_ejecucion": request.app.state.registro_ejecucion.estado_actual,
         },
     )

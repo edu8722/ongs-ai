@@ -8,8 +8,19 @@
 <h1 style="font-size:26px;font-weight:660;margin-top:8px">Dónde está cada candidata</h1>
 <p class="lead">Sedes de las candidatas (prospectos) sobre el mapa. La ubicación es el CENTROIDE de su comunidad autónoma — aproximada, no una geocodificación exacta — con su dirección tal cual consta en las notas del prospecto, si existen.</p>
 
+<form class="buscador" method="get" action="/consola/mapa">
+  <input type="search" name="texto" placeholder="Buscar por nombre…" value="{{ filtro_texto }}" aria-label="Buscar por nombre">
+  <input type="text" name="ccaa" placeholder="CCAA…" value="{{ filtro_ccaa }}" aria-label="Filtrar por comunidad autónoma">
+  <button type="submit">Filtrar</button>
+  {% if filtro_ccaa or filtro_texto %}<a class="chip" href="/consola/mapa">Limpiar filtros</a>{% endif %}
+</form>
+
 {% if not sedes %}
+{% if filtro_ccaa or filtro_texto %}
+<div class="empty">Sin candidatas que coincidan con el filtro.</div>
+{% else %}
 <div class="empty">Sin prospectos importados todavía.</div>
+{% endif %}
 {% else %}
 <div class="mapwrap">
   <div class="maplist" id="mapList">

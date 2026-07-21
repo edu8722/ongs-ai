@@ -12,7 +12,14 @@ from fastapi.templating import Jinja2Templates
 
 from datetime import date
 
-from ongs_ai.dominio.entidades import AmbitoTerritorial, Convocatoria, Entidad, EstadoIngesta, FormaJuridica
+from ongs_ai.dominio.entidades import (
+    AmbitoTerritorial,
+    Convocatoria,
+    Entidad,
+    EstadoIngesta,
+    FormaJuridica,
+    normalizar_texto_comparacion,
+)
 from ongs_ai.prospeccion.modelo import Prospecto
 from ongs_ai.servicios.afinidad import EstadoRequisito, ResultadoAfinidad, evaluar_afinidad
 
@@ -104,6 +111,17 @@ def _euros(centimos: int | None) -> str:
         return "—"
     euros, resto = divmod(centimos, 100)
     return f"{euros:,}".replace(",", ".") + f",{resto:02d} €"
+
+
+def coincide_texto(valor: str | None, query_norm: str | None) -> bool:
+    """Filtro de subcadena normalizada compartido por las vistas de consola
+    (PROMPT-026 A) — sin query, coincide siempre; con query y sin valor,
+    nunca coincide."""
+    if not query_norm:
+        return True
+    if not valor:
+        return False
+    return query_norm in normalizar_texto_comparacion(valor)
 
 
 def clave_perfil(perfil: Entidad | Prospecto) -> str:

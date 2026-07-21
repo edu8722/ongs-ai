@@ -30,6 +30,7 @@ from ongs_ai.dominio.entidades import (
     TipoFuente,
 )
 from ongs_ai.prospeccion.modelo import Prospecto
+from ongs_ai.servicios.afinidad import evaluar_afinidad
 from ongs_ai.servicios.autenticacion import EnviadorEnlaceAccesoStub
 from ongs_ai.web.app import crear_app
 
@@ -312,6 +313,133 @@ def test_mapa_vacio_no_revienta():
     resp = cliente.get("/consola/mapa")
     assert resp.status_code == 200
     assert "Sin prospectos importados" in resp.text
+
+
+# --- PROMPT-026 A: filtros server-side en todas las vistas ---
+
+
+def test_entidades_filtra_por_tipo_captadas_candidatas_o_todas():
+    cliente = _cliente_loopback(_almacen_poblado())
+
+    resp_captadas = cliente.get("/consola/entidades", params={"tipo": "captadas"})
+    assert "Asociación Consola de Prueba" in resp_captadas.text
+    assert "Asociación Candidata de Prueba" not in resp_captadas.text
+
+    resp_candidatas = cliente.get("/consola/entidades", params={"tipo": "candidatas"})
+    assert "Asociación Candidata de Prueba" in resp_candidatas.text
+    assert "Asociación Consola de Prueba" not in resp_candidatas.text
+
+    resp_todas = cliente.get("/consola/entidades", params={"tipo": ""})
+    assert "Asociación Consola de Prueba" in resp_todas.text
+    assert "Asociación Candidata de Prueba" in resp_todas.text
+
+
+def test_entidades_filtro_que_vacia_muestra_mensaje_correcto():
+    cliente = _cliente_loopback(_almacen_poblado())
+
+    resp = cliente.get("/consola/entidades", params={"q": "no-existe-nada"})
+    assert resp.status_code == 200
+    assert "Sin entidades captadas que coincidan con el filtro." in resp.text
+    assert "Sin candidatas que coincidan con el filtro." in resp.text
+
+
+def test_entidades_combina_texto_ccaa_y_tipo():
+    cliente = _cliente_loopback(_almacen_poblado())
+
+    # Combinación que acierta: la candidata SÍ está en Murcia.
+    resp = cliente.get(
+        "/consola/entidades", params={"q": "Candidata", "ccaa": "Murcia", "tipo": "candidatas"}
+    )
+    assert "Asociación Candidata de Prueba" in resp.text
+
+    # Misma combinación pidiendo "captadas" -> la candidata queda fuera por tipo.
+    resp_sin_tipo = cliente.get(
+        "/consola/entidades", params={"q": "Candidata", "ccaa": "Murcia", "tipo": "captadas"}
+    )
+    assert "Asociación Candidata de Prueba" not in resp_sin_tipo.text
+
+
+def test_cruce_filtra_por_estado_score_minimo_y_texto():
+    almacen = _almacen_poblado()
+    cliente = _cliente_loopback(almacen)
+    resultado_real = evaluar_afinidad(_entidad(), _convocatoria(), HOY)
+    assert resultado_real.elegible  # ancla la asunción de la que parte el resto del test
+
+    base = {"perfil": "entidad:ent-consola-1"}
+
+    # Estado: acierta con "elegible", vacía con "no_elegible".
+    resp_elegible = cliente.get("/consola/cruce", params={**base, "estado": "elegible"})
+    assert "atención directa a familias" in resp_elegible.text
+
+    resp_no_elegible = cliente.get("/consola/cruce", params={**base, "estado": "no_elegible"})
+    assert "Sin convocatorias que coincidan con el filtro." in resp_no_elegible.text
+    assert "atención directa a familias" not in resp_no_elegible.text
+
+    # Texto sobre el objeto: acierta / vacía.
+    resp_texto = cliente.get("/consola/cruce", params={**base, "texto": "atención directa"})
+    assert "atención directa a familias" in resp_texto.text
+    resp_texto_vacio = cliente.get("/consola/cruce", params={**base, "texto": "zzz-no-existe"})
+    assert "Sin convocatorias que coincidan con el filtro." in resp_texto_vacio.text
+
+    # Score mínimo: el score real siempre pasa el propio umbral, y nunca
+    # pasa un umbral un punto por encima (clamp 0-100 incluido).
+    resp_score_ok = cliente.get("/consola/cruce", params={**base, "score_min": str(resultado_real.score)})
+    assert "atención directa a familias" in resp_score_ok.text
+    if resultado_real.score < 100:
+        resp_score_alto = cliente.get(
+            "/consola/cruce", params={**base, "score_min": str(resultado_real.score + 1)}
+        )
+        assert "Sin convocatorias que coincidan con el filtro." in resp_score_alto.text
+
+    # Combinación acierta + combinación que vacía.
+    resp_combinada = cliente.get(
+        "/consola/cruce", params={**base, "estado": "elegible", "texto": "atención directa"}
+    )
+    assert "atención directa a familias" in resp_combinada.text
+    resp_combinada_vacia = cliente.get(
+        "/consola/cruce", params={**base, "estado": "elegible", "texto": "zzz-no-existe"}
+    )
+    assert "Sin convocatorias que coincidan con el filtro." in resp_combinada_vacia.text
+
+    # Score inválido (no numérico) se ignora en vez de reventar.
+    resp_score_invalido = cliente.get("/consola/cruce", params={**base, "score_min": "no-es-un-numero"})
+    assert resp_score_invalido.status_code == 200
+    assert "atención directa a familias" in resp_score_invalido.text
+
+
+def test_mapa_filtra_por_ccaa_y_texto():
+    cliente = _cliente_loopback(_almacen_poblado())
+
+    resp_ccaa_ok = cliente.get("/consola/mapa", params={"ccaa": "Murcia"})
+    assert "Asociación Candidata de Prueba" in resp_ccaa_ok.text
+
+    resp_ccaa_vacio = cliente.get("/consola/mapa", params={"ccaa": "Cataluña"})
+    assert "Sin candidatas que coincidan con el filtro." in resp_ccaa_vacio.text
+    assert "Asociación Candidata de Prueba" not in resp_ccaa_vacio.text
+
+    resp_texto_ok = cliente.get("/consola/mapa", params={"texto": "Candidata"})
+    assert "Asociación Candidata de Prueba" in resp_texto_ok.text
+
+    resp_texto_vacio = cliente.get("/consola/mapa", params={"texto": "zzz-no-existe"})
+    assert "Sin candidatas que coincidan con el filtro." in resp_texto_vacio.text
+
+    resp_combinado = cliente.get("/consola/mapa", params={"ccaa": "Murcia", "texto": "Candidata"})
+    assert "Asociación Candidata de Prueba" in resp_combinado.text
+    resp_combinado_vacio = cliente.get("/consola/mapa", params={"ccaa": "Murcia", "texto": "zzz-no-existe"})
+    assert "Sin candidatas que coincidan con el filtro." in resp_combinado_vacio.text
+
+
+def test_dashboard_filtra_oportunidades_por_ccaa_sin_tocar_metricas_globales():
+    cliente = _cliente_loopback(_almacen_poblado())
+
+    resp_ccaa_ok = cliente.get("/consola", params={"ccaa": "Murcia"})
+    assert "Ayudas a la atención directa a familias" in resp_ccaa_ok.text
+
+    resp_ccaa_vacio = cliente.get("/consola", params={"ccaa": "Cataluña"})
+    assert "Sin oportunidades que coincidan con el filtro de CCAA." in resp_ccaa_vacio.text
+    assert "Ayudas a la atención directa a familias" not in resp_ccaa_vacio.text
+    # Las métricas agregadas (candidatas/entidades) NO dependen del filtro.
+    assert "Candidatas" in resp_ccaa_vacio.text
 
 
 def test_rutas_nuevas_de_consola_exigen_loopback():

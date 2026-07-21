@@ -14,10 +14,27 @@
     <option value="{{ o.clave }}" {% if o.clave == clave_perfil_actual %}selected{% endif %}>{{ o.nombre }}</option>
     {% endfor %}
   </select>
+  <input type="hidden" name="estado" value="{{ filtro_estado }}">
+  <input type="hidden" name="score_min" value="{{ filtro_score_min }}">
+  <input type="hidden" name="texto" value="{{ filtro_texto }}">
   <button type="submit" class="chip">Ver</button>
   <span class="badge {{ 'accent' if info_perfil.es_entidad else 'neutral' }}">
     {{ "Entidad captada" if info_perfil.es_entidad else "Candidata (prospecto)" }}
   </span>
+</form>
+
+<form class="buscador" method="get" action="/consola/cruce">
+  <input type="hidden" name="perfil" value="{{ clave_perfil_actual }}">
+  <input type="search" name="texto" placeholder="Buscar por objeto de la convocatoria…" value="{{ filtro_texto }}" aria-label="Buscar por objeto">
+  <select name="estado" aria-label="Filtrar por estado del cruce">
+    <option value="" {% if not filtro_estado %}selected{% endif %}>Todos los estados</option>
+    <option value="elegible" {% if filtro_estado == "elegible" %}selected{% endif %}>Elegible</option>
+    <option value="no_evaluable" {% if filtro_estado == "no_evaluable" %}selected{% endif %}>No evaluable</option>
+    <option value="no_elegible" {% if filtro_estado == "no_elegible" %}selected{% endif %}>No elegible</option>
+  </select>
+  <input type="number" name="score_min" min="0" max="100" placeholder="Score mínimo" value="{{ filtro_score_min }}" aria-label="Score mínimo (0-100)">
+  <button type="submit">Filtrar</button>
+  {% if filtro_activo %}<a class="chip" href="/consola/cruce?perfil={{ clave_perfil_actual }}">Limpiar filtros</a>{% endif %}
 </form>
 
 <div class="ent-head">
@@ -102,7 +119,11 @@
     </div>
   </details>
   {% else %}
+  {% if filtro_activo %}
+  <div class="empty">Sin convocatorias que coincidan con el filtro.</div>
+  {% else %}
   <div class="empty">Sin convocatorias ingeridas todavía.</div>
+  {% endif %}
   {% endfor %}
 </div>
 

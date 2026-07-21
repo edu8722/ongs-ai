@@ -7,6 +7,27 @@
 
 ## Semana 2026-07-20/26
 
+- **PROMPT-025 — ADR-007: recurrentes esperadas** (Opus) — **HECHO 077a8c4,
+  APROBADO (auditoría íntegra del arquitecto), 372 tests, sin código.** Diseño
+  del corazón proactivo a partir de la petición literal del operador y su PDF
+  de Aniridia. Verificación en vivo decisiva: `nifCif` SÍ filtra en
+  /concesiones/busqueda (76 con NIF real / 0 con NIF inexistente / 28,3M
+  baseline; fechaDesde/Hasta dd/mm/yyyy combinables) — la fuente del historial
+  queda resuelta sin fallback caro (fallback por numeroConvocatoria
+  documentado). Decisiones clave: proactivo/ fuera del contrato (como
+  Prospecto); ventana SIEMPRE rango/mes desde la APERTURA de ediciones previas
+  (fechaConcesion solo proxy marcado); 1 edición → esperada confianza BAJA
+  etiquetada, ≥2 → ventana [min,max], confianza ALTA/MEDIA/BAJA con
+  degradación "irregular"; fingerprint determinista órgano+título sin tokens
+  de año, degrada a MISS jamás a enlace falso, sin IA; esperada NUNCA crea
+  Match — al publicarse la edición real se enlaza y el guardarraíl de F3
+  decide; nominativas accionable=False; avisos por canales ADR-004 (email solo
+  publicación real; ventana próxima solo panel, 1 vez, MEDIA/ALTA);
+  NO_APARECIDA informativa; anti-fuga cross-tenant ampliado; reversible.
+  Observación del arquitecto para F-proactivo.1: volatilidad de organo nivel3
+  (renombres de consejerías) → calibrar fingerprint (nivel1+nivel2+título).
+  Quedan las 6 preguntas de calibración §8 al operador (defaults razonables).
+
 - **PROMPT-024b — consola ignora descartadas (rendimiento + señal)** (Sonnet) —
   **HECHO 6528a29, APROBADO, 372 tests.** (El mensaje del commit dice
   "PROMPT-025" por error de etiqueta de la sesión; corresponde a este 024b.)

@@ -24,6 +24,7 @@
     Ver también descartadas
   </label>
   <button type="submit">Filtrar</button>
+  {% if filtro_texto or filtro_ambito or filtro_estado or incluir_descartadas %}<a class="chip" href="/consola/convocatorias">Limpiar filtros</a>{% endif %}
 </form>
 {% if numero_descartadas_totales and not incluir_descartadas and not filtro_estado %}
 <p class="lead" style="margin-top:8px;font-size:13px">{{ numero_descartadas_totales }} descartadas ocultas — auditables con "Ver también descartadas".</p>

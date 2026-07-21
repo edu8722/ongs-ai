@@ -31,9 +31,8 @@ from pathlib import Path
 from typing import Callable
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from ejecutar_ingesta import ResumenPasada  # noqa: E402
+from ongs_ai.servicios.pasada_ingesta import ResumenPasada  # noqa: E402
 
 from ongs_ai.dominio.entidades import (  # noqa: E402
     ActividadDeclarada,
@@ -198,17 +197,19 @@ def _leer_filas_prospectos(ruta: Path) -> list[dict[str, str]] | None:
 def _intentar_ingesta_corta(almacen):
     """Envoltorio de red real de `ejecutar_pasada` con flags conservadores
     (B1: "reutiliza ejecutar_ingesta con flags conservadores"). Cualquier
-    fallo (sin red, límite de plan, lo que sea) lo captura `preparar_demo`."""
-    from ejecutar_ingesta import (
-        PAGE_SIZE_DEFECTO,
-        PAGINAS_MAX_DEFECTO,
-        _construir_notificador,
-        ejecutar_pasada,
-    )
+    fallo (sin red, límite de plan, lo que sea) lo captura `preparar_demo`.
+    PROMPT-026 B1: la orquestación ya no vive en `scripts/ejecutar_ingesta.py`
+    — import directo del paquete."""
     from ongs_ai.adapters.ingesta.base import FiltrosBusqueda, TransporteURLLib
     from ongs_ai.adapters.ingesta.bdns import FuenteBDNS
     from ongs_ai.ia.claude_cli import ClienteClaudeCLI
     from ongs_ai.ia.explicacion_match import ExplicadorClaudeCLI
+    from ongs_ai.servicios.pasada_ingesta import (
+        PAGE_SIZE_DEFECTO,
+        PAGINAS_MAX_DEFECTO,
+        construir_notificador,
+        ejecutar_pasada,
+    )
 
     def reloj() -> datetime:
         return datetime.now(timezone.utc)
@@ -221,7 +222,7 @@ def _intentar_ingesta_corta(almacen):
     return ejecutar_pasada(
         fuente,
         almacen,
-        _construir_notificador(),
+        construir_notificador(),
         date.today(),
         filtros=FiltrosBusqueda(),
         limite_convocatorias=PAGINAS_MAX_DEFECTO * PAGE_SIZE_DEFECTO,

@@ -29,15 +29,28 @@ def _coincide(perfil, *, q_norm: str | None, ccaa_norm: str | None) -> bool:
 
 
 @router.get("/entidades")
-def listar_entidades(request: Request, q: str | None = None, ccaa: str | None = None):
+def listar_entidades(request: Request, q: str | None = None, ccaa: str | None = None, tipo: str | None = None):
     almacen = request.app.state.almacen
     hoy = request.app.state.reloj().date()
 
     q_norm = normalizar_texto_comparacion(q) if q else None
     ccaa_norm = normalizar_texto_comparacion(ccaa) if ccaa else None
 
-    entidades = [e for e in almacen.listar_entidades() if _coincide(e, q_norm=q_norm, ccaa_norm=ccaa_norm)]
-    prospectos = [p for p in almacen.listar_prospectos() if _coincide(p, q_norm=q_norm, ccaa_norm=ccaa_norm)]
+    # A1: "tipo" decide qué sección(es) se calculan — captadas/candidatas/todas
+    # (cualquier valor no reconocido se trata como "todas", nunca revienta).
+    mostrar_entidades = tipo != "candidatas"
+    mostrar_prospectos = tipo != "captadas"
+
+    entidades = (
+        [e for e in almacen.listar_entidades() if _coincide(e, q_norm=q_norm, ccaa_norm=ccaa_norm)]
+        if mostrar_entidades
+        else []
+    )
+    prospectos = (
+        [p for p in almacen.listar_prospectos() if _coincide(p, q_norm=q_norm, ccaa_norm=ccaa_norm)]
+        if mostrar_prospectos
+        else []
+    )
     convocatorias = almacen.listar_convocatorias()
 
     filas_entidades = [
@@ -69,5 +82,8 @@ def listar_entidades(request: Request, q: str | None = None, ccaa: str | None = 
             "filas_prospectos": filas_prospectos,
             "filtro_q": q or "",
             "filtro_ccaa": ccaa or "",
+            "filtro_tipo": tipo or "",
+            "mostrar_entidades": mostrar_entidades,
+            "mostrar_prospectos": mostrar_prospectos,
         },
     )

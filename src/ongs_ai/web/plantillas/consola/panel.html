@@ -26,7 +26,12 @@
 </div>
 
 <div class="section-h"><h2>Oportunidades más afines ahora</h2><a class="chip" href="/consola/cruce">Ver el cruce completo</a></div>
-<div class="grid">
+<form class="buscador" method="get" action="/consola">
+  <input type="text" name="ccaa" placeholder="CCAA del perfil…" value="{{ filtro_ccaa }}" aria-label="Filtrar oportunidades por comunidad autónoma">
+  <button type="submit">Filtrar</button>
+  {% if filtro_ccaa %}<a class="chip" href="/consola">Limpiar filtros</a>{% endif %}
+</form>
+<div class="grid" style="margin-top:16px">
   {% for op in oportunidades %}
   <a class="card click" href="/consola/cruce?perfil={{ op.clave_perfil }}">
     <div style="display:flex;gap:14px;align-items:center">
@@ -49,7 +54,50 @@
     </div>
   </a>
   {% else %}
+  {% if filtro_ccaa %}
+  <div class="empty">Sin oportunidades que coincidan con el filtro de CCAA.</div>
+  {% else %}
   <div class="empty">Sin cruces elegibles todavía — ingiere convocatorias o siembra candidatas.</div>
+  {% endif %}
   {% endfor %}
+</div>
+
+<div class="section-h"><h2>Estado de la plataforma</h2></div>
+<div class="ent-head">
+  {% set en_curso = estado_ejecucion.estado == "en_curso" %}
+  <div class="row" style="margin-top:0">
+    <span class="badge {{ 'warn' if en_curso else ('ok' if estado_ejecucion.estado == 'terminado' else ('no' if estado_ejecucion.estado == 'fallido' else 'neutral')) }}">
+      {% if en_curso %}En curso (desde {{ estado_ejecucion.inicio }}){% elif estado_ejecucion.estado == "terminado" %}Terminado en {{ estado_ejecucion.fin }}{% elif estado_ejecucion.estado == "fallido" %}Fallido en {{ estado_ejecucion.fin }}{% else %}Inactivo{% endif %}
+    </span>
+    {% if estado_ejecucion.tipo %}<span class="f">Última acción <b>{{ "Actualizar convocatorias" if estado_ejecucion.tipo == "actualizar_convocatorias" else "Recalcular revisiones" }}</b></span>{% endif %}
+  </div>
+  {% if estado_ejecucion.motivo_fallo %}
+  <p class="lead" style="margin-top:10px;font-size:13px">Motivo: {{ estado_ejecucion.motivo_fallo }}</p>
+  {% endif %}
+  {% if estado_ejecucion.resumen %}
+  {% set r = estado_ejecucion.resumen %}
+  <div class="row" style="margin-top:14px">
+    <span class="f">Ingestadas <b class="num">{{ r.ingestadas }}</b></span>
+    <span class="f">Ya existentes <b class="num">{{ r.ya_existentes }}</b></span>
+    <span class="f">Enriquecidas por IA <b class="num">{{ r.enriquecidas_por_ia }}</b></span>
+    <span class="f">Promovidas <b class="num">{{ r.promovidas }}</b></span>
+    <span class="f">Propuestas nuevas <b class="num">{{ r.propuestas_nuevas }}</b></span>
+    <span class="f">Propuestas sobrevenidas <b class="num">{{ r.propuestas_sobrevenidas }}</b></span>
+    <span class="f">Descartadas (no abiertas) <b class="num">{{ r.descartadas_no_abiertas }}</b></span>
+    <span class="f">Descartadas (concesión directa) <b class="num">{{ r.descartadas_concesion_directa }}</b></span>
+    <span class="f">Llamadas IA usadas <b class="num">{{ r.llamadas_ia_usadas }}</b></span>
+    <span class="f">Sin IA por freno de plan <b class="num">{{ r.convocatorias_sin_ia_por_freno }}</b></span>
+    <span class="f">Fallos IA inesperados <b class="num">{{ r.fallos_ia_inesperados }}</b></span>
+  </div>
+  {% endif %}
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+    <form method="post" action="/consola/acciones/actualizar-convocatorias" style="margin:0">
+      <button type="submit" class="chip" {% if en_curso %}disabled{% endif %}>Actualizar convocatorias</button>
+    </form>
+    <form method="post" action="/consola/acciones/recalcular-revisiones" style="margin:0">
+      <button type="submit" class="chip" {% if en_curso %}disabled{% endif %}>Recalcular revisiones</button>
+    </form>
+  </div>
+  <p class="lead" style="margin-top:10px;font-size:12.5px">Se ejecuta en segundo plano; recarga la página para ver el resultado (v1 sin actualización automática).</p>
 </div>
 {% endblock %}

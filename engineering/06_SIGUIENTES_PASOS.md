@@ -70,6 +70,29 @@ siguiente acción según este documento.
 
 ## ESTADO VIVO
 
+- **2026-07-22 — PROMPT-025 / ADR-007 CERRADO: APROBADO, HECHO 077a8c4 (372
+  tests, sin código).** Leído íntegro (568 líneas) y auditado contra método y
+  contrato: verificación en vivo ejemplar (nifCif SÍ filtra: 76/0/28M con
+  fechas dd/mm/yyyy combinables; descripcionBeneficiario confirmado inútil;
+  enlace numeroConvocatoria==codigoBDNS verificado; fallback documentado);
+  HistorialConcesion (hecho) y ConvocatoriaEsperada (estimación) en proactivo/
+  FUERA del contrato; ventana SIEMPRE rango/mes desde la APERTURA de ediciones
+  previas (no la concesión — matiz de honestidad excelente); 1 edición →
+  confianza BAJA etiquetada (honra el "en base al año pasado" literal); ≥2 →
+  ventana [min,max] con confianza; fingerprint determinista que degrada a MISS
+  (jamás esperada falsa, sin IA); esperada NUNCA crea Match (enlaza al
+  publicarse y el guardarraíl intacto decide); concesión directa →
+  accionable=False; anti-fuga ampliado; todo aditivo y reversible.
+  **OBSERVACIÓN del arquitecto para F-proactivo.1 (no bloquea):** el
+  fingerprint incluye organo nivel3 (consejería) y las consejerías se
+  RENOMBRAN entre años (el propio histórico de Aniridia lo muestra: "Familia,
+  Juventud y Asuntos Sociales" antes "Políticas Sociales") → misses evitables;
+  calibrar en implementación (p. ej. fingerprint por nivel1+nivel2+título, con
+  nivel3 solo como desempate) manteniendo la degradación a miss.
+  **PENDIENTE DEL OPERADOR: las 6 preguntas de calibración del §8 del ADR
+  (todas con default razonable — puede aceptarlas en bloque).**
+  **SIGUIENTE EN COLA: PROMPT-026 (F-consola.3, Sonnet). F-proactivo.1 lo
+  redacta el arquitecto al cerrar el 026, con las respuestas del §8.**
 - **2026-07-22 — PROMPT-024b CERRADO: APROBADO, HECHO 6528a29, 372 tests,
   pushed.** convocatorias_utiles excluye descartadas en dashboard/cruce;
   /consola/convocatorias las oculta por defecto con checkbox auditable (motivo
@@ -172,74 +195,6 @@ siguiente acción según este documento.
 
 ### ➤ PROMPTS PENDIENTES — todos aquí, listos para copiar (se vacían al cerrarse)
 
-#### PROMPT-025 — ADR-007: vigilancia de recurrentes, historial por NIF y convocatorias esperadas · MODELO: Opus · ORDEN: 2º (SOLO tras cerrar PROMPT-024; nada en paralelo)
-
-```
-POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda,
-elige la opción más conservadora/reversible y DOCUMENTA la decisión; ante
-ambigüedad de alcance, lo literal del prompt y anota lo excluido; jamás
-inventes datos ni mediciones. Reglas de oro de CLAUDE.md por encima de
-todo. La pizarra (engineering/06_*) la mantiene SOLO el arquitecto: no
-cierres items, no te declares APROBADO — incluye en tu commit los cambios
-de engineering/06_* que ya estén en el working tree, tal cual.
-
-TAREA: SOLO DISEÑO — escribe engineering/ADR-007-recurrentes-esperadas.md.
-CERO código de producción. Este ADR define el corazón proactivo del
-producto, pedido por el operador con evidencia real (histórico de
-concesiones de Aniridia 2022-2024: 15 ayudas, la mayoría ediciones
-anuales recurrentes — IRPF 0,7%% estatal y CAM, mantenimiento de
-servicios CAM, ayuda mutua Sanidad CAM, asociacionismo municipal,
-diputaciones).
-
-REQUISITOS DEL OPERADOR (literales, 2026-07-22): "en base al año pasado
-debería informar de a qué convocatorias se podrían intentar presentar y
-que tengan un estado de pendiente de publicar o algo así y en base a las
-fechas de otros años marque en torno a qué fecha debería salir la
-convocatoria".
-
-El ADR debe decidir, como mínimo:
-1. FUENTE HISTORIAL: /concesiones/busqueda de la BDNS. VERIFICA contra la
-   API real (peticiones manuales, documentadas en el ADR — mismo método
-   que ADR-001..006) el parámetro REAL de filtro por beneficiario/NIF:
-   el arquitecto ya comprobó que `descripcionBeneficiario` NO filtra
-   (devuelve los 28M de registros). Si no existe filtro server-side
-   utilizable, decide la alternativa (p. ej. búsqueda por convocatoria
-   conocida + filtrado cliente) y su coste.
-2. MODELO DE DOMINIO: HistorialConcesion (ayuda pasada de una entidad) y
-   ConvocatoriaEsperada (edición anual prevista). ¿Viven dentro del
-   contrato congelado (ampliación vía este ADR) o en paquete aparte como
-   Prospecto? ¿Esperada es global o por entidad? ¿Relación con Match?
-   (propuesta conservadora a evaluar: una esperada NUNCA crea Match — al
-   publicarse la edición real se enlaza esperada→convocatoria y el
-   matching normal hace el resto; la esperada tiene ciclo propio:
-   ESPERADA → PUBLICADA_ENLAZADA | NO_APARECIDA).
-3. ESTIMACIÓN DE FECHA honesta: derivada de las fechas de ediciones
-   previas; SIEMPRE como rango/mes ("suele publicarse en mayo-junio"),
-   jamás fecha exacta; ¿cuántas ediciones previas exigen derivar una
-   esperada (1, 2)? ¿cómo se degrada con datos irregulares? Mismo
-   criterio de honestidad que el importe techo-teórico de ADR-006.
-4. AVISOS: al publicarse la edición real de una esperada (la ingesta del
-   024 la traerá), enlazar y avisar por los canales existentes (email +
-   panel). ¿Aviso también de "se acerca la ventana estimada"? Decide.
-5. TENANCY Y PII: el historial se consulta por NIF de la entidad (dato
-   del tenant); las concesiones son públicas en la BDNS. Reglas de
-   aislamiento por tenant para historial y esperadas por entidad.
-6. QUÉ QUEDA FUERA (anti-sobre-ingeniería): sin predicciones de importe,
-   sin probabilidad de concesión (rechazado ya en ADR-006), sin
-   scraping de bases; solo BDNS estructurada en esta fase.
-
-Método: lee ADR-001/002/005/006 y el contrato real en
-src/ongs_ai/dominio/ antes de decidir; cada decisión con alternativas
-consideradas y por qué NO. Caso de contraste obligatorio: el histórico
-real de Aniridia (el operador lo tiene en investigacion/, NO lo copies a
-git — referencia sus patrones: IRPF anual con ventana ~mayo-junio,
-mantenimiento CAM otoño, asociacionismo octubre).
-
-Cierre: python -m pytest -q VERDE (sin código nuevo, el nº real de tests
-no cambia), commit ÚNICO "ADR-007: ... (N tests, sin código)", git status
-antes del add, push. Preguntas no bloqueantes AGRUPADAS al final.
-```
-
 #### PROMPT-026 — F-consola.3: filtros en todas las pantallas + acciones desde la web · MODELO: Sonnet · ORDEN: 3º (tras cerrar el ADR-007; nada en paralelo)
 
 ```
@@ -320,9 +275,13 @@ el dashboard — verificación humana del ciclo completo sin terminal.
 
 ### Bandeja del OPERADOR
 
-- **Pegar PROMPT-025 (ADR-007) — sesión OPUS, solo diseño, cero código.**
-  Copia del 06 ACTUAL. Después de mi auditoría: PROMPT-026 (F-consola.3).
-- La consola ya vuela con la base grande — úsala y sigue apuntando lo raro.
+- **Pegar PROMPT-026 (F-consola.3, Sonnet) — COPIA la versión ACTUAL del 06.**
+- **Responder (o aceptar en bloque) los 6 defaults del §8 del ADR-007:**
+  (1) historial: últimos 5 años · (2) 1 edición basta para esperada BAJA ·
+  (3) aviso de "ventana próxima" solo en panel · (4) NO_APARECIDA a los 2
+  meses de pasar la ventana · (5) nominativas visibles pero sin "preséntate" ·
+  (6) re-derivación tras cada ingesta. Un "defaults OK" me vale; cualquier
+  matiz, dímelo y lo llevo al prompt de F-proactivo.1.
 - Commit de docs cuando quieras:
   `git add engineering/ && git commit -m "Pizarra (docs)" && git push`
 - Decisión pendiente (sin prisa): teléfono público de ABAIMAR en

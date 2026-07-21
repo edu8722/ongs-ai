@@ -1,18 +1,19 @@
-"""Orquestación del runner de ingesta (`scripts/ejecutar_ingesta.ejecutar_pasada`)
-— PROMPT-018 B2. Todo inyectado/stub: sin red (fuente stub), sin CLI real
-(cliente IA stub), `AlmacenMemoria` en vez de SQLite. `scripts/` no es un
-paquete instalado — se añade a `sys.path` igual que hacen los propios
-scripts para importar `src/` (ver `scripts/ejecutar_ingesta.py`).
+"""Orquestación de la pasada de ingesta (`ongs_ai.servicios.pasada_ingesta.
+ejecutar_pasada`/`ejecutar_pasada_bateria`) — PROMPT-018 B2, movido desde
+`tests/test_ejecutar_ingesta.py` en PROMPT-026 B1 (la orquestación ya no vive
+en `scripts/`, es un módulo del paquete — import directo, sin sys.path). Todo
+inyectado/stub: sin red (fuente stub), sin CLI real (cliente IA stub),
+`AlmacenMemoria` en vez de SQLite.
 """
 from __future__ import annotations
 
-import sys
 from datetime import date, datetime, timezone
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-
-from ejecutar_ingesta import ejecutar_pasada, ejecutar_pasada_bateria  # noqa: E402
+from ongs_ai.servicios.pasada_ingesta import (  # noqa: E402
+    ejecutar_pasada,
+    ejecutar_pasada_bateria,
+    ejecutar_pasada_recalculo,
+)
 
 from ongs_ai.adapters.ingesta.bdns import (  # noqa: E402
     MOTIVO_CONCESION_DIRECTA,
@@ -578,3 +579,50 @@ def test_bateria_freno_de_llamadas_ia_es_global_a_toda_la_pasada():
     assert cliente_ia.llamadas == 2
     assert resumen.llamadas_ia_usadas == 2
     assert resumen.convocatorias_sin_ia_por_freno == 1
+
+
+# --- PROMPT-026 B3: recálculo de matching/propuestas sobre lo ya ingerido ---
+
+
+def test_recalculo_solo_matching_no_toca_ingesta_ni_ia():
+    # Convocatoria YA verificada de una pasada anterior -> el recálculo la
+    # cruza contra la cartera SIN volver a tocar red ni IA de extracción.
+    almacen = AlmacenMemoria()
+    almacen.guardar_entidad(_entidad())
+    almacen.guardar_convocatoria(
+        _convocatoria_extraida(estado_ingesta=EstadoIngesta.VERIFICADA)
+    )
+    notificador = NotificadorStub()
+
+    resumen = ejecutar_pasada_recalculo(
+        almacen,
+        notificador,
+        HOY,
+        generador_ids=_ids(),
+        reloj=_reloj,
+    )
+
+    assert resumen.ingestadas == 0
+    assert resumen.ya_existentes == 0
+    assert resumen.enriquecidas_por_ia == 0
+    assert resumen.llamadas_ia_usadas == 0
+    assert resumen.propuestas_nuevas == 1
+    matches = almacen.listar_matches_por_entidad("ent-1")
+    assert len(matches) == 1
+    assert matches[0].estado_actual == EstadoMatch.PROPUESTA
+
+
+def test_recalculo_sin_convocatorias_ni_entidades_no_revienta():
+    almacen = AlmacenMemoria()
+    notificador = NotificadorStub()
+
+    resumen = ejecutar_pasada_recalculo(
+        almacen,
+        notificador,
+        HOY,
+        generador_ids=_ids(),
+        reloj=_reloj,
+    )
+
+    assert resumen.propuestas_nuevas == 0
+    assert resumen.propuestas_sobrevenidas == 0

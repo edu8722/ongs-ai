@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Request
 
 from ongs_ai.dominio.entidades import normalizar_texto_comparacion
 from ongs_ai.web.dependencias_operador import operador_actual, solo_loopback
-from ongs_ai.web.rutas.consola._soporte import CENTROIDE_CCAA, crear_plantillas
+from ongs_ai.web.rutas.consola._soporte import CENTROIDE_CCAA, coincide_texto, crear_plantillas
 
 router = APIRouter(prefix="/consola", dependencies=[Depends(solo_loopback), Depends(operador_actual)])
 
@@ -27,9 +27,16 @@ def _centroide(region: str | None) -> tuple[float, float] | None:
 
 
 @router.get("/mapa")
-def mapa(request: Request):
+def mapa(request: Request, ccaa: str | None = None, texto: str | None = None):
     almacen = request.app.state.almacen
-    prospectos = almacen.listar_prospectos()
+
+    ccaa_norm = normalizar_texto_comparacion(ccaa) if ccaa else None
+    texto_norm = normalizar_texto_comparacion(texto) if texto else None
+    prospectos = [
+        p
+        for p in almacen.listar_prospectos()
+        if coincide_texto(p.region, ccaa_norm) and coincide_texto(p.nombre, texto_norm)
+    ]
 
     sedes = []
     for p in prospectos:
@@ -75,5 +82,7 @@ def mapa(request: Request):
             "sedes": sedes,
             "sedes_con_ubicacion": sedes_con_ubicacion,
             "sedes_json": sedes_json,
+            "filtro_ccaa": ccaa or "",
+            "filtro_texto": texto or "",
         },
     )
