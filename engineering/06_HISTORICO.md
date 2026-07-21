@@ -2,6 +2,14 @@
 
 ## Semana 2026-07-20/26
 
+- **PROMPT-017 — Fix SQLite multihilo bajo FastAPI** (Sonnet) — **HECHO 1336741,
+  APROBADO (auditoría del arquitecto), 222 tests.** check_same_thread=False + Lock
+  del almacén serializando toda operación (migración incluida). Regresión doble:
+  hermético desde otro hilo + integración HTTP con AlmacenSQLite(':memory:') —
+  el hueco que dejó pasar el bug queda tapado para siempre. Práctica ejemplar de la
+  sesión: verificó que ambos tests FALLAN con el fix revertido antes de darlos por
+  buenos. Bug original cazado por el operador en navegador real (2026-07-21).
+
 - **PROMPT-016 — Empaquetado instalable + comando canónico** (Sonnet) — **HECHO
   8ebfb1d, APROBADO (auditoría del arquitecto), 220 tests.**
   `[tool.setuptools.packages.find] where=["src"]`; `pip install -e .` verificado
