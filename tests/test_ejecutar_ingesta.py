@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from ejecutar_ingesta import ejecutar_pasada  # noqa: E402
+from ejecutar_ingesta import ejecutar_pasada, ejecutar_pasada_bateria  # noqa: E402
 
 from ongs_ai.adapters.ingesta.bdns import (  # noqa: E402
     MOTIVO_CONCESION_DIRECTA,
@@ -51,6 +51,20 @@ class _FuenteStub:
 
     def buscar(self, filtros=None):
         return list(self._convocatorias)
+
+
+class _FuenteBateriaStub:
+    """Fuente en la que cada búsqueda (`filtros.descripcion`, el término de la
+    batería) devuelve su propio lote — permite testear dedupe ENTRE búsquedas
+    y tope de páginas POR búsqueda (PROMPT-024 A3/B) sin red real."""
+
+    def __init__(self, por_termino: dict[str, list[Convocatoria]]) -> None:
+        self._por_termino = por_termino
+        self.filtros_recibidos: list = []
+
+    def buscar(self, filtros=None):
+        self.filtros_recibidos.append(filtros)
+        return list(self._por_termino.get(filtros.descripcion, []))
 
 
 class _ClienteIAStub:
@@ -418,3 +432,149 @@ def test_resumen_cuenta_descartadas_por_dominio_por_motivo():
     assert resumen.descartadas_concesion_directa == 2
     # La descartada NUNCA se enriquece ni se promociona (no está EXTRAIDA).
     assert almacen.obtener_convocatoria("bdns-no-abierta").estado_ingesta == EstadoIngesta.DESCARTADA_POR_DOMINIO
+
+
+# --- PROMPT-024: batería de búsquedas dirigidas (ejecutar_pasada_bateria) ---
+
+
+def test_bateria_recorre_cada_termino_y_dedupe_entre_busquedas():
+    almacen = AlmacenMemoria()
+    almacen.guardar_entidad(_entidad())
+    compartida = _convocatoria_extraida("bdns-compartida")
+    solo_de_b = _convocatoria_extraida("bdns-solo-b")
+    fuente = _FuenteBateriaStub(
+        {
+            # La misma convocatoria aparece en dos búsquedas distintas de la
+            # batería (caso real: IRPF y "fines sociales" pueden traer la
+            # misma convocatoria) — el dedupe por código BDNS debe colapsarla.
+            "IRPF": [compartida],
+            "fines sociales": [compartida, solo_de_b],
+        }
+    )
+    notificador = NotificadorStub()
+
+    resumen = ejecutar_pasada_bateria(
+        fuente,
+        almacen,
+        notificador,
+        HOY,
+        ["IRPF", "fines sociales"],
+        cliente_ia=None,
+        generador_explicacion=None,
+        generador_ids=_ids(),
+        reloj=_reloj,
+    )
+
+    assert [f.descripcion for f in fuente.filtros_recibidos] == ["IRPF", "fines sociales"]
+    # Total agregado: 2 convocatorias NUEVAS de verdad (compartida + solo_de_b).
+    assert resumen.ingestadas == 2
+    assert resumen.ya_existentes == 1  # la repetida en "fines sociales"
+
+    assert len(resumen.por_busqueda) == 2
+    irpf, fines = resumen.por_busqueda
+    assert irpf.termino == "IRPF"
+    assert irpf.encontradas == 1
+    assert irpf.ingestadas == 1
+    assert irpf.ya_existentes == 0
+    assert fines.termino == "fines sociales"
+    assert fines.encontradas == 2
+    assert fines.ingestadas == 1  # solo_de_b
+    assert fines.ya_existentes == 1  # compartida, ya vista en "IRPF"
+
+    # Una sola propuesta por convocatoria distinta (no se duplica por
+    # aparecer en dos búsquedas de la misma pasada).
+    matches = almacen.listar_matches_por_entidad("ent-1")
+    assert {m.convocatoria_id for m in matches} == {"bdns-compartida", "bdns-solo-b"}
+    assert resumen.propuestas_nuevas == 2
+
+
+def test_bateria_aplica_tope_de_paginas_por_busqueda():
+    almacen = AlmacenMemoria()
+    lote_grande = [_convocatoria_extraida(f"bdns-{i}") for i in range(5)]
+    fuente = _FuenteBateriaStub({"IRPF": lote_grande})
+    notificador = NotificadorStub()
+
+    resumen = ejecutar_pasada_bateria(
+        fuente,
+        almacen,
+        notificador,
+        HOY,
+        ["IRPF"],
+        limite_convocatorias_por_busqueda=2,
+        cliente_ia=None,
+        generador_explicacion=None,
+        generador_ids=_ids(),
+        reloj=_reloj,
+    )
+
+    assert resumen.por_busqueda[0].encontradas == 2
+    assert resumen.ingestadas == 2
+
+
+def test_bateria_cuenta_descartadas_por_dominio_por_busqueda():
+    # A4: la ruta dirigida pasa por el MISMO criterio de descarte de dominio
+    # del PROMPT-023 (no se duplica el pipeline) — aquí se ve reflejado por
+    # búsqueda, no solo en el agregado.
+    almacen = AlmacenMemoria()
+    no_abierta = _convocatoria_extraida(
+        "bdns-no-abierta",
+        estado_ingesta=EstadoIngesta.DESCARTADA_POR_DOMINIO,
+        requisitos_elegibilidad=RequisitosElegibilidad(exclusiones=(MOTIVO_NO_ABIERTA_EN_ORIGEN,)),
+    )
+    concesion_directa = _convocatoria_extraida(
+        "bdns-concesion",
+        estado_ingesta=EstadoIngesta.DESCARTADA_POR_DOMINIO,
+        requisitos_elegibilidad=RequisitosElegibilidad(exclusiones=(MOTIVO_CONCESION_DIRECTA,)),
+    )
+    fuente = _FuenteBateriaStub({"IRPF": [no_abierta], "discapacidad": [concesion_directa]})
+    notificador = NotificadorStub()
+
+    resumen = ejecutar_pasada_bateria(
+        fuente,
+        almacen,
+        notificador,
+        HOY,
+        ["IRPF", "discapacidad"],
+        cliente_ia=None,
+        generador_explicacion=None,
+        generador_ids=_ids(),
+        reloj=_reloj,
+    )
+
+    irpf, discapacidad = resumen.por_busqueda
+    assert irpf.descartadas_no_abiertas == 1
+    assert irpf.descartadas_concesion_directa == 0
+    assert discapacidad.descartadas_no_abiertas == 0
+    assert discapacidad.descartadas_concesion_directa == 1
+    assert resumen.descartadas_no_abiertas == 1
+    assert resumen.descartadas_concesion_directa == 1
+
+
+def test_bateria_freno_de_llamadas_ia_es_global_a_toda_la_pasada():
+    almacen = AlmacenMemoria()
+    fuente = _FuenteBateriaStub(
+        {
+            "IRPF": [_convocatoria_extraida("bdns-1"), _convocatoria_extraida("bdns-2")],
+            "discapacidad": [_convocatoria_extraida("bdns-3")],
+        }
+    )
+    notificador = NotificadorStub()
+    cliente_ia = _ClienteIAStub()  # sin respuestas -> degrada, pero SIGUE contando llamadas
+
+    resumen = ejecutar_pasada_bateria(
+        fuente,
+        almacen,
+        notificador,
+        HOY,
+        ["IRPF", "discapacidad"],
+        cliente_ia=cliente_ia,
+        max_llamadas_ia=2,
+        generador_ids=_ids(),
+        reloj=_reloj,
+    )
+
+    # El freno es GLOBAL: 2 llamadas ya consumidas en "IRPF" (bdns-1, bdns-2)
+    # dejan a "discapacidad" (bdns-3) sin IA, no con su propio tope de 2.
+    assert cliente_ia.llamadas == 2
+    assert resumen.llamadas_ia_usadas == 2
+    assert resumen.convocatorias_sin_ia_por_freno == 1

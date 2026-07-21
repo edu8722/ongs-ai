@@ -319,6 +319,15 @@ def _params_busqueda(filtros: FiltrosBusqueda, *, page: int, page_size: int) -> 
     return params
 
 
+# PROMPT-024 (A2): verificado en vivo el 2026-07-22 contra la API real que
+# `/convocatorias/busqueda` NO acepta un parámetro de query `abierto` — con
+# `descripcion=IRPF`, `abierto=true` y `abierto=false` devuelven el mismo
+# `totalElements` (424) que sin el parámetro. NO se añade como filtro de
+# servidor: el descarte de convocatorias cerradas sigue siendo el de
+# `_motivos_descarte_dominio`, sobre el campo `abierto` del DETALLE (que sí
+# es real, ver PROMPT-023) — cliente, no servidor.
+
+
 class FuenteBDNS:
     """`FuenteConvocatorias` contra la API pública de la BDNS (busqueda paginada +
     detalle por convocatoria)."""

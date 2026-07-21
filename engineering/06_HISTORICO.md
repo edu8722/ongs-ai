@@ -7,6 +7,24 @@
 
 ## Semana 2026-07-20/26
 
+- **PROMPT-023 — honestidad de la ingesta BDNS** (Sonnet) — **HECHO 36a95a3,
+  APROBADO (auditoría contra repo real), 364 tests.** Origen: PRIMER hallazgo de
+  producto del operador usando la consola (Aniridia vs "PARTICIPACIÓN DE CCOO
+  ... FP CANARIA 2026", verificado por el arquitecto contra la API primaria).
+  (A) NUTS1 con tabla cerrada de CCAA + normalizador del dominio; TOPE POR
+  ÓRGANO como invariante (el ámbito jamás más amplio que el convocante — mata
+  la clase); el replicado en requisitos hereda el valor corregido; fixture real
+  920435 (ES7-CANARIAS/abierto=false/"Concesión directa - instrumental") como
+  regresión. (B) descarte en ingesta de no-abiertas y concesiones directas como
+  DESCARTADA_POR_DOMINIO con motivo (dato ausente nunca descarta — conservador);
+  métricas nuevas en el resumen del runner. (C) reevaluar_ingesta.py (--simular
+  por defecto, --aplicar explícito; orquestación testeada, 6 tests) — plan real:
+  50/52 a descartar (cerradas/nominativas), honesto; demo-conv-* saltadas
+  limpiamente. (D) badge "requisitos sin datos — revisar bases" en el cruce.
+  Decisiones de sesión auditadas: fixtures 100002-100004 con abierto=true
+  (relleno arbitrario que invalidaba aserciones) y mapear_convocatoria público
+  para reutilización sin duplicar — ambas correctas.
+
 - **PROMPT-022 — cliente CLI hermético + guardarraíl de arranque + enlace por
   POST** (Sonnet) — **HECHO 7822282, APROBADO (auditoría contra repo real), 339
   tests.** Cierra la SAGA DE LOS 400 y el fallo UTF-8: (A) subprocess con

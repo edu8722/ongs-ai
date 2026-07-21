@@ -15,12 +15,26 @@ Pipeline por pasada:
          o aviso por consola si no)
       -> resumen impreso
 
-`ejecutar_pasada` es la función de orquestación, testeada con todo
-inyectado/stub (B2, sin red ni CLI real; ver tests/test_ejecutar_ingesta.py).
-`main()` es el cableado real y NO se testea (igual que scripts/smoke_bdns.py).
+MODO POR DEFECTO (PROMPT-024, cobertura): recorre la batería VERSIONADA de
+búsquedas dirigidas (`adapters/ingesta/busquedas_dirigidas.TERMINOS_BUSQUEDA_
+DIRIGIDA`) — la búsqueda general paginada por fecha de publicación NUNCA
+encuentra el histórico de una entidad (IRPF, fines sociales...), solo las
+convocatorias más recientes. `--texto` sigue disponible para UNA búsqueda ad
+hoc puntual (p. ej. probar un término nuevo antes de sumarlo a la batería).
+El tope de páginas (`--paginas-max`) aplica POR BÚSQUEDA en ambos modos; el
+dedupe por código BDNS (portal+url_origen) evita duplicados entre búsquedas
+de la misma pasada, y el freno de llamadas IA (`--max-llamadas-ia`) es
+GLOBAL a toda la pasada (todas las búsquedas comparten la misma suscripción).
+
+`ejecutar_pasada` (una única búsqueda) y `ejecutar_pasada_bateria` (la
+batería completa, resumen POR BÚSQUEDA) son las funciones de orquestación,
+testeadas con todo inyectado/stub (B2, sin red ni CLI real; ver
+tests/test_ejecutar_ingesta.py). `main()` es el cableado real y NO se testea
+(igual que scripts/smoke_bdns.py).
 
 Uso:
-    python scripts/ejecutar_ingesta.py [--texto TEXTO] [--fecha-desde AAAA-MM-DD]
+    python scripts/ejecutar_ingesta.py [--paginas-max N] [--page-size N] [--max-llamadas-ia N]
+    python scripts/ejecutar_ingesta.py --texto TEXTO [--fecha-desde AAAA-MM-DD]
         [--fecha-hasta AAAA-MM-DD] [--paginas-max N] [--page-size N]
         [--max-llamadas-ia N]
 
@@ -40,7 +54,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Sequence
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -54,6 +68,7 @@ from ongs_ai.adapters.ingesta.bdns import (  # noqa: E402
     MOTIVO_NO_ABIERTA_EN_ORIGEN,
     FuenteBDNS,
 )
+from ongs_ai.adapters.ingesta.busquedas_dirigidas import TERMINOS_BUSQUEDA_DIRIGIDA  # noqa: E402
 from ongs_ai.adapters.ingesta.servicio import ingestar  # noqa: E402
 from ongs_ai.adapters.persistencia.sqlite import AlmacenSQLite, RUTA_DB_DEFECTO  # noqa: E402
 from ongs_ai.dominio.entidades import Convocatoria, EstadoIngesta  # noqa: E402
@@ -66,9 +81,25 @@ from ongs_ai.servicios.propuestas import detectar_y_proponer  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-PAGINAS_MAX_DEFECTO = 1
+# A3: conservador a propósito — cada búsqueda de la batería es una petición
+# de red real distinta; con 11 términos, 3 páginas de 50 ya son hasta 1650
+# convocatorias/detalles por pasada.
+PAGINAS_MAX_DEFECTO = 3
 PAGE_SIZE_DEFECTO = 50
 MAX_LLAMADAS_IA_DEFECTO = 25
+
+
+@dataclass(frozen=True)
+class ResumenBusqueda:
+    """A3 — resultado de UNA búsqueda dentro de una pasada por batería (o de
+    la única búsqueda de una pasada `--texto`)."""
+
+    termino: str
+    encontradas: int
+    ingestadas: int
+    ya_existentes: int
+    descartadas_no_abiertas: int
+    descartadas_concesion_directa: int
 
 
 @dataclass(frozen=True)
@@ -87,6 +118,9 @@ class ResumenPasada:
     fallos_ia_inesperados: int
     descartadas_no_abiertas: int
     descartadas_concesion_directa: int
+    # A3: vacío en una pasada de una sola búsqueda (`ejecutar_pasada`); con
+    # el detalle por término en una pasada por batería (`ejecutar_pasada_bateria`).
+    por_busqueda: tuple[ResumenBusqueda, ...] = ()
 
 
 class _FuenteMaterializada:
@@ -171,6 +205,97 @@ class _GeneradorExplicacionConFreno:
             return ""
 
 
+class _StatsProcesado:
+    """Caja mutable de contadores acumulados por `_procesar_convocatorias_fetch`
+    — un objeto propio (no un dict) para que los nombres sean explícitos en
+    ambos llamadores (`ejecutar_pasada` y `ejecutar_pasada_bateria`, A4: el
+    mismo pipeline, nunca duplicado)."""
+
+    def __init__(self) -> None:
+        self.enriquecidas = 0
+        self.promovidas = 0
+        self.sin_ia_por_freno = 0
+        self.descartadas_no_abiertas = 0
+        self.descartadas_concesion_directa = 0
+
+
+def _procesar_convocatorias_fetch(
+    convocatorias_fetch: list[Convocatoria],
+    almacen,
+    claves_vistas: set[tuple[str, str]],
+    cliente_ia: ClienteClaudeCLI | None,
+    max_llamadas_ia: int,
+    contador_fallos_inesperados: _ContadorMutable,
+    stats: _StatsProcesado,
+) -> list[Convocatoria]:
+    """A4 — pipeline ÚNICO de dedupe-en-pasada + enriquecimiento IA + promoción
+    para un lote ya descargado (una búsqueda completa, dirigida o ad hoc); lo
+    reutilizan `ejecutar_pasada` (una búsqueda) y `ejecutar_pasada_bateria`
+    (la batería completa, un lote por término) para no duplicar los mismos
+    criterios de descarte/promoción del PROMPT-023. `claves_vistas` y `stats`
+    son compartidos entre llamadas sucesivas de una misma pasada por batería
+    (dedupe y contadores GLOBALES a la pasada, no solo a esta búsqueda)."""
+    convocatorias_procesadas: list[Convocatoria] = []
+
+    for convocatoria_fetch in convocatorias_fetch:
+        clave = (convocatoria_fetch.fuente.portal, convocatoria_fetch.fuente.url_origen)
+        if clave in claves_vistas:
+            continue  # ya vista en esta pasada (esta búsqueda u otra de la batería)
+        claves_vistas.add(clave)
+
+        # Versión canónica en el almacén: para una convocatoria YA existente
+        # (dedupe), puede llevar enriquecimiento de una pasada anterior que
+        # el texto recién descargado no tiene — nunca se pisa con el fetch.
+        convocatoria = almacen.obtener_por_url_origen(*clave) or convocatoria_fetch
+
+        if convocatoria.estado_ingesta is EstadoIngesta.DESCARTADA_POR_DOMINIO:
+            exclusiones = convocatoria.requisitos_elegibilidad.exclusiones
+            if MOTIVO_NO_ABIERTA_EN_ORIGEN in exclusiones:
+                stats.descartadas_no_abiertas += 1
+            if MOTIVO_CONCESION_DIRECTA in exclusiones:
+                stats.descartadas_concesion_directa += 1
+
+        actualizada = convocatoria
+        if (
+            cliente_ia is not None
+            and actualizada.estado_ingesta is EstadoIngesta.EXTRAIDA
+        ):
+            if cliente_ia.llamadas < max_llamadas_ia:
+                enriquecida, fallo_inesperado = _enriquecer_seguro(cliente_ia, actualizada)
+                if fallo_inesperado:
+                    contador_fallos_inesperados.incrementar()
+                elif enriquecida is not actualizada:
+                    actualizada = enriquecida
+                    stats.enriquecidas += 1
+            else:
+                stats.sin_ia_por_freno += 1
+
+        promovida = promocionar_si_completa(actualizada)
+        if promovida.estado_ingesta != actualizada.estado_ingesta:
+            stats.promovidas += 1
+        actualizada = promovida
+
+        if actualizada is not convocatoria:
+            almacen.guardar_convocatoria(actualizada)
+
+        convocatorias_procesadas.append(actualizada)
+
+    return convocatorias_procesadas
+
+
+def _generador_explicacion_con_freno(
+    generador_explicacion: GeneradorExplicacion | None,
+    cliente_ia: ClienteClaudeCLI | None,
+    max_llamadas_ia: int,
+    contador_fallos_inesperados: _ContadorMutable,
+) -> GeneradorExplicacion | None:
+    if generador_explicacion is not None and cliente_ia is not None:
+        return _GeneradorExplicacionConFreno(
+            generador_explicacion, cliente_ia, max_llamadas_ia, contador_fallos_inesperados
+        )
+    return generador_explicacion
+
+
 def ejecutar_pasada(
     fuente: FuenteConvocatorias,
     almacen,
@@ -185,8 +310,9 @@ def ejecutar_pasada(
     generador_ids: Callable[[], str],
     reloj: Callable[[], datetime],
 ) -> ResumenPasada:
-    """Orquesta una pasada completa. `almacen` implementa RepositorioEntidades
-    + RepositorioConvocatorias + RepositorioMatches (p. ej. AlmacenSQLite /
+    """Orquesta una pasada de UNA búsqueda (la de `filtros`, o la búsqueda
+    general si es `None`). `almacen` implementa RepositorioEntidades +
+    RepositorioConvocatorias + RepositorioMatches (p. ej. AlmacenSQLite /
     AlmacenMemoria en tests). Testeable de punta a punta con todo inyectado:
     sin red real (fuente/notificador stub) ni CLI real (cliente_ia stub o
     None) — ver tests/test_ejecutar_ingesta.py (B2).
@@ -198,63 +324,22 @@ def ejecutar_pasada(
 
     resumen_ingesta = ingestar(_FuenteMaterializada(convocatorias_fetch), almacen, filtros)
 
-    convocatorias_procesadas: list[Convocatoria] = []
-    enriquecidas = 0
-    promovidas = 0
-    sin_ia_por_freno = 0
-    descartadas_no_abiertas = 0
-    descartadas_concesion_directa = 0
     claves_vistas: set[tuple[str, str]] = set()
     contador_fallos_inesperados = _ContadorMutable()
+    stats = _StatsProcesado()
+    convocatorias_procesadas = _procesar_convocatorias_fetch(
+        convocatorias_fetch,
+        almacen,
+        claves_vistas,
+        cliente_ia,
+        max_llamadas_ia,
+        contador_fallos_inesperados,
+        stats,
+    )
 
-    for convocatoria_fetch in convocatorias_fetch:
-        clave = (convocatoria_fetch.fuente.portal, convocatoria_fetch.fuente.url_origen)
-        if clave in claves_vistas:
-            continue  # la propia fuente podría repetir un item en una misma pasada
-        claves_vistas.add(clave)
-
-        # Versión canónica en el almacén: para una convocatoria YA existente
-        # (dedupe), puede llevar enriquecimiento de una pasada anterior que
-        # el texto recién descargado no tiene — nunca se pisa con el fetch.
-        convocatoria = almacen.obtener_por_url_origen(*clave) or convocatoria_fetch
-
-        if convocatoria.estado_ingesta is EstadoIngesta.DESCARTADA_POR_DOMINIO:
-            exclusiones = convocatoria.requisitos_elegibilidad.exclusiones
-            if MOTIVO_NO_ABIERTA_EN_ORIGEN in exclusiones:
-                descartadas_no_abiertas += 1
-            if MOTIVO_CONCESION_DIRECTA in exclusiones:
-                descartadas_concesion_directa += 1
-
-        actualizada = convocatoria
-        if (
-            cliente_ia is not None
-            and actualizada.estado_ingesta is EstadoIngesta.EXTRAIDA
-        ):
-            if cliente_ia.llamadas < max_llamadas_ia:
-                enriquecida, fallo_inesperado = _enriquecer_seguro(cliente_ia, actualizada)
-                if fallo_inesperado:
-                    contador_fallos_inesperados.incrementar()
-                elif enriquecida is not actualizada:
-                    actualizada = enriquecida
-                    enriquecidas += 1
-            else:
-                sin_ia_por_freno += 1
-
-        promovida = promocionar_si_completa(actualizada)
-        if promovida.estado_ingesta != actualizada.estado_ingesta:
-            promovidas += 1
-        actualizada = promovida
-
-        if actualizada is not convocatoria:
-            almacen.guardar_convocatoria(actualizada)
-
-        convocatorias_procesadas.append(actualizada)
-
-    generador_explicacion_efectivo = generador_explicacion
-    if generador_explicacion is not None and cliente_ia is not None:
-        generador_explicacion_efectivo = _GeneradorExplicacionConFreno(
-            generador_explicacion, cliente_ia, max_llamadas_ia, contador_fallos_inesperados
-        )
+    generador_explicacion_efectivo = _generador_explicacion_con_freno(
+        generador_explicacion, cliente_ia, max_llamadas_ia, contador_fallos_inesperados
+    )
 
     entidades = almacen.listar_entidades()
 
@@ -272,8 +357,8 @@ def ejecutar_pasada(
     return ResumenPasada(
         ingestadas=resumen_ingesta.nuevas,
         ya_existentes=resumen_ingesta.ya_existentes,
-        enriquecidas_por_ia=enriquecidas,
-        promovidas=promovidas,
+        enriquecidas_por_ia=stats.enriquecidas,
+        promovidas=stats.promovidas,
         propuestas_nuevas=resumen_propuestas.nuevas_propuestas,
         propuestas_sobrevenidas=resumen_propuestas.propuestas_sobrevenidas,
         avisos_intentados=(
@@ -282,10 +367,125 @@ def ejecutar_pasada(
         no_elegibles_persistidas=resumen_propuestas.no_elegibles_persistidas,
         saltadas_pre_puerta=resumen_propuestas.saltadas_pre_puerta,
         llamadas_ia_usadas=cliente_ia.llamadas if cliente_ia is not None else 0,
-        convocatorias_sin_ia_por_freno=sin_ia_por_freno,
+        convocatorias_sin_ia_por_freno=stats.sin_ia_por_freno,
         fallos_ia_inesperados=contador_fallos_inesperados.valor,
-        descartadas_no_abiertas=descartadas_no_abiertas,
-        descartadas_concesion_directa=descartadas_concesion_directa,
+        descartadas_no_abiertas=stats.descartadas_no_abiertas,
+        descartadas_concesion_directa=stats.descartadas_concesion_directa,
+    )
+
+
+def ejecutar_pasada_bateria(
+    fuente: FuenteConvocatorias,
+    almacen,
+    notificador: Notificador,
+    fecha_referencia: date,
+    terminos: Sequence[str],
+    *,
+    limite_convocatorias_por_busqueda: int | None = None,
+    cliente_ia: ClienteClaudeCLI | None = None,
+    generador_explicacion: GeneradorExplicacion | None = None,
+    max_llamadas_ia: int = MAX_LLAMADAS_IA_DEFECTO,
+    generador_ids: Callable[[], str],
+    reloj: Callable[[], datetime],
+) -> ResumenPasada:
+    """A3 — orquesta una pasada que recorre TODA la batería de búsquedas
+    dirigidas (`terminos`, una por elemento, como `FiltrosBusqueda.descripcion`).
+    `limite_convocatorias_por_busqueda` es el tope de páginas POR BÚSQUEDA (no
+    global). El dedupe por código BDNS (`claves_vistas`) y el freno de
+    llamadas IA (`max_llamadas_ia`, sobre el mismo `cliente_ia`) son
+    GLOBALES a la pasada — compartidos entre todas las búsquedas de la
+    batería, para no gastar dos veces la misma suscripción del operador ni
+    reprocesar una convocatoria que ya trajo una búsqueda anterior. La
+    detección de propuestas corre UNA sola vez al final, sobre el conjunto
+    ya deduplicado de todas las búsquedas (evita proponer el mismo match dos
+    veces si dos términos traen la misma convocatoria en pasadas distintas
+    de la misma ejecución).
+    """
+    claves_vistas: set[tuple[str, str]] = set()
+    contador_fallos_inesperados = _ContadorMutable()
+    stats_totales = _StatsProcesado()
+    convocatorias_procesadas: list[Convocatoria] = []
+    resumenes_busqueda: list[ResumenBusqueda] = []
+    ingestadas_totales = 0
+    ya_existentes_totales = 0
+
+    for termino in terminos:
+        filtros = FiltrosBusqueda(descripcion=termino)
+        convocatorias_encontradas = fuente.buscar(filtros)
+        if limite_convocatorias_por_busqueda is not None:
+            convocatorias_encontradas = itertools.islice(
+                convocatorias_encontradas, limite_convocatorias_por_busqueda
+            )
+        convocatorias_fetch = list(convocatorias_encontradas)
+
+        resumen_ingesta = ingestar(_FuenteMaterializada(convocatorias_fetch), almacen, filtros)
+        ingestadas_totales += resumen_ingesta.nuevas
+        ya_existentes_totales += resumen_ingesta.ya_existentes
+
+        stats_busqueda = _StatsProcesado()
+        procesadas = _procesar_convocatorias_fetch(
+            convocatorias_fetch,
+            almacen,
+            claves_vistas,
+            cliente_ia,
+            max_llamadas_ia,
+            contador_fallos_inesperados,
+            stats_busqueda,
+        )
+        convocatorias_procesadas.extend(procesadas)
+
+        stats_totales.enriquecidas += stats_busqueda.enriquecidas
+        stats_totales.promovidas += stats_busqueda.promovidas
+        stats_totales.sin_ia_por_freno += stats_busqueda.sin_ia_por_freno
+        stats_totales.descartadas_no_abiertas += stats_busqueda.descartadas_no_abiertas
+        stats_totales.descartadas_concesion_directa += stats_busqueda.descartadas_concesion_directa
+
+        resumenes_busqueda.append(
+            ResumenBusqueda(
+                termino=termino,
+                encontradas=len(convocatorias_fetch),
+                ingestadas=resumen_ingesta.nuevas,
+                ya_existentes=resumen_ingesta.ya_existentes,
+                descartadas_no_abiertas=stats_busqueda.descartadas_no_abiertas,
+                descartadas_concesion_directa=stats_busqueda.descartadas_concesion_directa,
+            )
+        )
+
+    generador_explicacion_efectivo = _generador_explicacion_con_freno(
+        generador_explicacion, cliente_ia, max_llamadas_ia, contador_fallos_inesperados
+    )
+
+    entidades = almacen.listar_entidades()
+
+    resumen_propuestas = detectar_y_proponer(
+        entidades,
+        convocatorias_procesadas,
+        fecha_referencia,
+        almacen,
+        notificador,
+        generador_ids=generador_ids,
+        reloj=reloj,
+        generador_explicacion=generador_explicacion_efectivo,
+    )
+
+    return ResumenPasada(
+        ingestadas=ingestadas_totales,
+        ya_existentes=ya_existentes_totales,
+        enriquecidas_por_ia=stats_totales.enriquecidas,
+        promovidas=stats_totales.promovidas,
+        propuestas_nuevas=resumen_propuestas.nuevas_propuestas,
+        propuestas_sobrevenidas=resumen_propuestas.propuestas_sobrevenidas,
+        avisos_intentados=(
+            resumen_propuestas.nuevas_propuestas + resumen_propuestas.propuestas_sobrevenidas
+        ),
+        no_elegibles_persistidas=resumen_propuestas.no_elegibles_persistidas,
+        saltadas_pre_puerta=resumen_propuestas.saltadas_pre_puerta,
+        llamadas_ia_usadas=cliente_ia.llamadas if cliente_ia is not None else 0,
+        convocatorias_sin_ia_por_freno=stats_totales.sin_ia_por_freno,
+        fallos_ia_inesperados=contador_fallos_inesperados.valor,
+        descartadas_no_abiertas=stats_totales.descartadas_no_abiertas,
+        descartadas_concesion_directa=stats_totales.descartadas_concesion_directa,
+        por_busqueda=tuple(resumenes_busqueda),
     )
 
 
@@ -326,11 +526,6 @@ def _parsear_argumentos(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main() -> None:
     args = _parsear_argumentos()
-    filtros = FiltrosBusqueda(
-        descripcion=args.texto,
-        fecha_desde=date.fromisoformat(args.fecha_desde) if args.fecha_desde else None,
-        fecha_hasta=date.fromisoformat(args.fecha_hasta) if args.fecha_hasta else None,
-    )
 
     def reloj() -> datetime:
         return datetime.now(timezone.utc)
@@ -345,23 +540,57 @@ def main() -> None:
     cliente_ia = ClienteClaudeCLI()
     generador_explicacion = ExplicadorClaudeCLI(cliente_ia)
     notificador = _construir_notificador()
+    limite_por_busqueda = args.paginas_max * args.page_size
 
-    resumen = ejecutar_pasada(
-        fuente,
-        almacen,
-        notificador,
-        fecha_referencia,
-        filtros=filtros,
-        limite_convocatorias=args.paginas_max * args.page_size,
-        cliente_ia=cliente_ia,
-        generador_explicacion=generador_explicacion,
-        max_llamadas_ia=args.max_llamadas_ia,
-        generador_ids=generador_ids,
-        reloj=reloj,
-    )
+    if args.texto is not None:
+        # `--texto`: búsqueda ad hoc única (probar un término antes de sumarlo
+        # a la batería versionada, o repetir la pasada de una entidad concreta).
+        filtros = FiltrosBusqueda(
+            descripcion=args.texto,
+            fecha_desde=date.fromisoformat(args.fecha_desde) if args.fecha_desde else None,
+            fecha_hasta=date.fromisoformat(args.fecha_hasta) if args.fecha_hasta else None,
+        )
+        resumen = ejecutar_pasada(
+            fuente,
+            almacen,
+            notificador,
+            fecha_referencia,
+            filtros=filtros,
+            limite_convocatorias=limite_por_busqueda,
+            cliente_ia=cliente_ia,
+            generador_explicacion=generador_explicacion,
+            max_llamadas_ia=args.max_llamadas_ia,
+            generador_ids=generador_ids,
+            reloj=reloj,
+        )
+    else:
+        # Modo por defecto (PROMPT-024): batería completa de búsquedas dirigidas.
+        resumen = ejecutar_pasada_bateria(
+            fuente,
+            almacen,
+            notificador,
+            fecha_referencia,
+            TERMINOS_BUSQUEDA_DIRIGIDA,
+            limite_convocatorias_por_busqueda=limite_por_busqueda,
+            cliente_ia=cliente_ia,
+            generador_explicacion=generador_explicacion,
+            max_llamadas_ia=args.max_llamadas_ia,
+            generador_ids=generador_ids,
+            reloj=reloj,
+        )
 
     print()
     print("=== Resumen de la pasada ===")
+    if resumen.por_busqueda:
+        print("--- Por búsqueda ---")
+        for r in resumen.por_busqueda:
+            print(
+                f"  [{r.termino}] encontradas={r.encontradas} ingestadas={r.ingestadas} "
+                f"ya_existentes={r.ya_existentes} "
+                f"descartadas_no_abiertas={r.descartadas_no_abiertas} "
+                f"descartadas_concesion_directa={r.descartadas_concesion_directa}"
+            )
+        print()
     print(f"Convocatorias ingestadas (nuevas): {resumen.ingestadas}")
     print(f"Convocatorias ya existentes (deduplicadas): {resumen.ya_existentes}")
     print(f"Enriquecidas por IA: {resumen.enriquecidas_por_ia}")

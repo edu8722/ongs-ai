@@ -70,6 +70,56 @@ siguiente acción según este documento.
 
 ## ESTADO VIVO
 
+- **2026-07-22 — TERCER PAQUETE DE FEEDBACK DE PRODUCTO DEL OPERADOR (voz del
+  producto, convertido a spec):** (1) convocatorias ESPERADAS: en base a años
+  anteriores, mostrar a cuáles podría presentarse cada asociación aunque la
+  edición de este año aún no exista, con estado "pendiente de publicar" y FECHA
+  ESTIMADA de publicación derivada de las fechas de ediciones previas → entra
+  como requisito de primer nivel en ADR-007 (vigilancia de recurrentes). (2)
+  FILTROS EN TODAS LAS PANTALLAS de la consola → F-consola.3. (3) ACCIONES
+  DESDE LA WEB: botones para relanzar la actualización de convocatorias
+  (ingesta) y recalcular a qué puede presentarse cada asociación, sin tocar la
+  terminal → F-consola.3, con diseño conservador (ejecución en segundo plano
+  con candado anti-doble-pasada y estado visible de la última ejecución; el
+  detalle lo fija el prompt del arquitecto). ORDEN DE COLA CONFIRMADO:
+  PROMPT-024 (cobertura, YA EN COLA — sin cambios, pégalo cuando quieras) →
+  ADR-007 (Opus, diseño de recurrentes con lo de arriba) → F-consola.3
+  (filtros + acciones web) → F-recurrentes.1 (implementación del ADR). Si
+  prefieres ver antes los filtros/botones que las recurrentes, dímelo y
+  intercambio ADR-007 y F-consola.3.
+- **2026-07-22 — SEGUNDO HALLAZGO DE PRODUCTO DEL OPERADOR: COBERTURA. Faltan
+  convocatorias (IRPF estatal/autonómico, etc.).** Evidencia aportada: PDF del
+  histórico real de concesiones de Aniridia 2022-2024 (15 ayudas: CAM IRPF 0,7%
+  y mantenimiento, Ayto. Madrid/Moncloa-Aravaca, diputaciones Castellón/Granada/
+  Alicante, Ministerio de Educación). Diagnóstico del arquitecto, verificado
+  contra la API real: la ingesta solo pagina las publicaciones MÁS RECIENTES
+  (ventana de decenas sobre ~639k) — nunca hemos BUSCADO. Verificado sin usar:
+  (1) /convocatorias/busqueda acepta `descripcion=` (IRPF → 424 resultados
+  reales, estatal 0,7% incluida); (2) existe /concesiones/busqueda paginado (la
+  fuente del propio PDF). Dos piezas: PROMPT-024 (cobertura por búsquedas
+  dirigidas, EN COLA) y ADR-007 (vigilancia de recurrentes + historial por NIF
+  — muchas ayudas del PDF son ediciones pasadas cuya edición 2026 aún no está
+  publicada; hay que avisar cuando aparezca, no buscarla antes de que exista).
+  El PDF del operador NO viaja a git (guardar como
+  investigacion/aniridia_concesiones_2022_2024.pdf, untracked).
+- **2026-07-22 — PROMPT-023 CERRADO: APROBADO, HECHO 36a95a3, 364 tests, pushed.**
+  Auditado contra el repo real: tabla cerrada NUTS1→CCAA + tope por órgano
+  (invariante que impide ámbito más amplio que el convocante), descarte en
+  ingesta de abierto=false y concesiones directas (dato ausente nunca descarta),
+  fixture REAL del caso Aniridia/CCOO (920435) como regresión permanente,
+  scripts/reevaluar_ingesta.py con --simular por defecto, badge "requisitos sin
+  datos" en el cruce. Decisiones de la sesión auditadas y correctas (fixtures
+  100002-100004 a abierto=true para no invalidar sus aserciones;
+  mapear_convocatoria público para reutilizar la lógica testeada).
+  **El plan --simular dice 50 de 52 → DESCARTADA (mayoría por cerradas en
+  origen): es el resultado HONESTO — la base actual se ingirió sin estos
+  filtros. Tras --aplicar la consola quedará casi vacía de convocatorias:
+  el paso siguiente inmediato es una pasada de ingesta nueva, que ya solo
+  traerá abiertas de verdad.** Las 2 saltadas son demo-conv-* (ficticias del
+  antiguo script del arquitecto) — limpiar antes de cualquier demo a una
+  asociación real (anotado en bandeja).
+  **SIN PROMPTS EN COLA — el siguiente lo decide el veredicto del operador
+  usando la consola con datos ya honestos.**
 - **2026-07-22 — PROMPT-022 CERRADO: APROBADO, HECHO 7822282, 339 tests, pushed.**
   Auditado contra el repo real: (A) EjecutorSubprocesoReal con encoding="utf-8"/
   errors="replace" + frontera blindada a None; preguntar() ya no deja escapar
@@ -96,7 +146,7 @@ siguiente acción según este documento.
 
 ### ➤ PROMPTS PENDIENTES — todos aquí, listos para copiar (se vacían al cerrarse)
 
-#### PROMPT-023 — Honestidad de la ingesta BDNS: ámbito NUTS1, abierto=false y concesiones directas · MODELO: Sonnet · ORDEN: 1º (nada en paralelo)
+#### PROMPT-024 — Cobertura de ingesta: búsquedas dirigidas contra la BDNS · MODELO: Sonnet · ORDEN: 1º (nada en paralelo)
 
 ```
 POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda
@@ -109,95 +159,253 @@ un fichero grande, Grep al símbolo y lee el rango. La pizarra
 declares APROBADO — limítate a incluir en tu commit los cambios de
 engineering/06_* que ya estén en el working tree, tal cual estén.
 
-CONTEXTO (hallazgo real del operador en la consola, verificado por el
-arquitecto contra la API primaria, numConv=920435): la convocatoria
-"PARTICIPACIÓN DE CCOO ... FP CANARIA 2026" está en la base como NACIONAL
-y VERIFICADA cuando la BDNS real dice regiones=`ES7 - CANARIAS` (NUTS1),
-`abierto: false` y tipo "Concesión directa - instrumental" (nominativa a
-CCOO). Triple fallo de honestidad de datos en la ingesta. Regla de oro:
-jamás sobre-prometer.
+CONTEXTO (hallazgo real del operador con evidencia): el histórico de
+concesiones de una asociación real (Aniridia, 2022-2024) contiene 15
+ayudas — IRPF 0,7% estatal y autonómico, mantenimiento de servicios CAM,
+fomento del asociacionismo municipal, diputaciones — y casi ninguna
+aparece en nuestra base. Causa: ejecutar_ingesta solo pagina las
+publicaciones más recientes de la búsqueda general; nunca BUSCA. El
+arquitecto verificó contra la API real que /convocatorias/busqueda acepta
+`descripcion=` como filtro de texto real (IRPF → 424 resultados).
 
-A. ÁMBITO — arregla `_ambito_y_region_desde_regiones` (adapters/ingesta/
-   bdns.py) con fixture REAL grabada: descarga tú el detalle de
-   numConv=920435 (una sola petición manual, fuera de tests) y grábalo en
-   tests/fixtures/ingesta/bdns_detalle_920435.json. Fail-first: test con
-   esa fixture que hoy devuelve NACIONAL y debe devolver AUTONOMICO/
-   "CANARIAS". Reglas nuevas, deterministas y documentadas:
-A1. Código NUTS1 (1 dígito tras ES): si el nombre tras " - " coincide
-   (normalizado) con una CCAA de una tabla CERRADA de nombres de CCAA →
-   AUTONOMICO con esa region. La tabla vive en el ADAPTER (no en dominio)
-   y cubre los 19 nombres oficiales (17 CCAA + Ceuta y Melilla) más los
-   alias ya usados en consola (_soporte.CENTROIDE_CCAA usa las mismas
-   claves normalizadas — NO dupliques el normalizador: usa
-   normalizar_texto_comparacion del dominio).
-A2. TOPE POR ÓRGANO (invariante nuevo, la parte que mata la CLASE de
-   bug): el ámbito derivado JAMÁS puede ser más amplio que el órgano
-   convocante — organo.nivel1 AUTONOMICA → como mucho AUTONOMICO (si las
-   regiones no dieron nombre, region = organo.nivel2 si existe); LOCAL →
-   como mucho PROVINCIAL. Con ESTADO se mantiene lo derivado. Aplica el
-   tope SIEMPRE tras el parseo de regiones. Tests de las combinaciones.
-A3. El replicado en requisitos.ambito_territorial_requerido (bdns.py:156)
-   hereda el valor ya corregido — verifica con test que la contradicción
-   "fuente autonómica + ámbito nacional" ya no puede producirse desde la
-   ingesta.
-B. ABIERTO Y CONCESIONES DIRECTAS — en el detalle real de la BDNS
-   descubre los nombres EXACTOS de los campos (en la fixture de A los
-   verás: `abierto` y el campo del tipo/procedimiento de concesión;
-   documenta ambos en el docstring del módulo):
-B1. `abierto: false` en el momento de la ingesta → la convocatoria NO se
-   ingesta como oportunidad: se persiste como DESCARTADA_POR_DOMINIO con
-   motivo "no abierta en origen" (así el dedupe evita re-procesarla cada
-   pasada) y cuenta en el resumen (nueva métrica descartadas_no_abiertas).
-B2. Tipo de convocatoria "Concesión directa" (instrumental/nominativa) →
-   ídem: DESCARTADA_POR_DOMINIO con motivo "concesión directa (no
-   concurrencia)", métrica descartadas_concesion_directa. Si el campo no
-   viene en el detalle, no se descarta por este criterio (conservador con
-   el dato ausente, jamás adivinar por el título).
-C. LIMPIEZA DE LO YA INGERIDO — `scripts/reevaluar_ingesta.py` (misma
-   estructura que ejecutar_ingesta: orquestación pura testeada con stubs +
-   main con red real): recorre las convocatorias bdns-* existentes,
-   re-consulta su detalle real, re-aplica el mapeo y filtros nuevos y (a)
-   corrige ámbito/region/requisitos si cambiaron, (b) marca
-   DESCARTADA_POR_DOMINIO las no abiertas/concesiones directas. Flag
-   --simular que imprime el plan SIN escribir (default: simular; escribir
-   exige --aplicar). Imprime resumen de cambios. El operador lo ejecuta
-   tras el commit y pega el resultado.
-D. HONESTIDAD VISUAL EN EL CRUCE — cuando una convocatoria no tiene NINGÚN
-   requisito estructurado más allá del ámbito (forma jurídica, antigüedad
-   y requisitos formales todos vacíos), la vista de cruce muestra un badge
-   "requisitos sin datos — revisar bases" en vez de dejar que el 70% de
-   cobertura vacíamente satisfecha parezca certeza. SOLO presentación
-   (plantilla + dato derivado en la ruta): NO toques el modelo de score ni
-   ADR-006.
+A1. Batería de búsquedas dirigidas VERSIONADA en un módulo propio
+   (p. ej. src/ongs_ai/adapters/ingesta/busquedas_dirigidas.py): tupla
+   cerrada de términos con comentario de por qué cada uno, primera
+   edición: "IRPF", "fines sociales", "interés general", "discapacidad",
+   "enfermedades raras", "voluntariado", "asociacionismo", "entidades sin
+   ánimo de lucro", "tercer sector", "ayuda mutua", "inclusión". Es
+   estrategia de búsqueda (config del producto), no dato de ONG — el
+   anti-hardcoding no aplica aquí, documéntalo.
+A2. FuenteBDNS.buscar gana el parámetro de texto (`descripcion`) — nombre
+   EXACTO verificado por el arquitecto contra la API real. Si al probar
+   descubres más filtros útiles soportados de verdad (p. ej. fechas o
+   abierto en servidor), añádelos con una verificación real documentada;
+   si un parámetro no filtra de verdad (el arquitecto comprobó que en
+   /concesiones/busqueda `descripcionBeneficiario` NO filtra), NO lo uses.
+A3. ejecutar_ingesta.py: modo por defecto nuevo = recorrer la batería
+   completa (dedupe ya existente por código BDNS evita duplicados entre
+   búsquedas), con límite de páginas POR BÚSQUEDA (parámetro CLI,
+   defecto conservador 3) y el freno de IA global intacto. `--texto` para
+   una búsqueda ad hoc única. El resumen imprime resultados POR BÚSQUEDA
+   (encontradas/ingestadas/descartadas por los filtros del 023).
+A4. Los filtros de honestidad del 023 (abierto=false, concesión directa,
+   tope por órgano) se aplican a TODO lo que entre por cualquier búsqueda
+   — verifica con test que la ruta dirigida pasa por el mismo
+   mapear_convocatoria/criterios (no dupliques el pipeline).
+B. Tests: función de orquestación de la batería con transporte stub
+   (varias búsquedas, dedupe entre ellas, límite de páginas por búsqueda,
+   resumen por búsqueda). Sin red en CI, como siempre.
 
-E. `python -m pytest -q` VERDE con el nº REAL de tests. NO toques
-   contrato (los campos de Convocatoria no cambian), ni máquina de
-   estados, ni el scoring.
+C. `python -m pytest -q` VERDE con el nº REAL de tests. NO toques
+   contrato, máquina de estados, scoring ni las vistas.
 
 Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
-git status antes del add (JAMÁS los CSV/xlsx de investigacion/), git push.
-Tras el commit: ejecuta scripts/reevaluar_ingesta.py --simular contra la
-base real y pega el plan impreso (el operador decidirá aplicar).
+git status antes del add (JAMÁS los CSV/xlsx/PDF de investigacion/),
+git push. Tras el commit, EJECUTA la pasada real con la batería completa
+(límite de páginas conservador) y pega el resumen por búsqueda; comprueba
+y reporta expresamente si aparecen ya (edición 2026 abierta) las del
+histórico de Aniridia: IRPF 0,7%% estatal, IRPF 0,7%% CAM, mantenimiento
+de servicios CAM, ayuda mutua y autocuidados CAM, fomento del
+asociacionismo (Ayto. Madrid). Las que no existan aún NO son fallo tuyo:
+son las "recurrentes esperadas" que resolverá ADR-007 (vigilancia).
+```
+
+#### PROMPT-025 — ADR-007: vigilancia de recurrentes, historial por NIF y convocatorias esperadas · MODELO: Opus · ORDEN: 2º (SOLO tras cerrar PROMPT-024; nada en paralelo)
+
+```
+POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda,
+elige la opción más conservadora/reversible y DOCUMENTA la decisión; ante
+ambigüedad de alcance, lo literal del prompt y anota lo excluido; jamás
+inventes datos ni mediciones. Reglas de oro de CLAUDE.md por encima de
+todo. La pizarra (engineering/06_*) la mantiene SOLO el arquitecto: no
+cierres items, no te declares APROBADO — incluye en tu commit los cambios
+de engineering/06_* que ya estén en el working tree, tal cual.
+
+TAREA: SOLO DISEÑO — escribe engineering/ADR-007-recurrentes-esperadas.md.
+CERO código de producción. Este ADR define el corazón proactivo del
+producto, pedido por el operador con evidencia real (histórico de
+concesiones de Aniridia 2022-2024: 15 ayudas, la mayoría ediciones
+anuales recurrentes — IRPF 0,7%% estatal y CAM, mantenimiento de
+servicios CAM, ayuda mutua Sanidad CAM, asociacionismo municipal,
+diputaciones).
+
+REQUISITOS DEL OPERADOR (literales, 2026-07-22): "en base al año pasado
+debería informar de a qué convocatorias se podrían intentar presentar y
+que tengan un estado de pendiente de publicar o algo así y en base a las
+fechas de otros años marque en torno a qué fecha debería salir la
+convocatoria".
+
+El ADR debe decidir, como mínimo:
+1. FUENTE HISTORIAL: /concesiones/busqueda de la BDNS. VERIFICA contra la
+   API real (peticiones manuales, documentadas en el ADR — mismo método
+   que ADR-001..006) el parámetro REAL de filtro por beneficiario/NIF:
+   el arquitecto ya comprobó que `descripcionBeneficiario` NO filtra
+   (devuelve los 28M de registros). Si no existe filtro server-side
+   utilizable, decide la alternativa (p. ej. búsqueda por convocatoria
+   conocida + filtrado cliente) y su coste.
+2. MODELO DE DOMINIO: HistorialConcesion (ayuda pasada de una entidad) y
+   ConvocatoriaEsperada (edición anual prevista). ¿Viven dentro del
+   contrato congelado (ampliación vía este ADR) o en paquete aparte como
+   Prospecto? ¿Esperada es global o por entidad? ¿Relación con Match?
+   (propuesta conservadora a evaluar: una esperada NUNCA crea Match — al
+   publicarse la edición real se enlaza esperada→convocatoria y el
+   matching normal hace el resto; la esperada tiene ciclo propio:
+   ESPERADA → PUBLICADA_ENLAZADA | NO_APARECIDA).
+3. ESTIMACIÓN DE FECHA honesta: derivada de las fechas de ediciones
+   previas; SIEMPRE como rango/mes ("suele publicarse en mayo-junio"),
+   jamás fecha exacta; ¿cuántas ediciones previas exigen derivar una
+   esperada (1, 2)? ¿cómo se degrada con datos irregulares? Mismo
+   criterio de honestidad que el importe techo-teórico de ADR-006.
+4. AVISOS: al publicarse la edición real de una esperada (la ingesta del
+   024 la traerá), enlazar y avisar por los canales existentes (email +
+   panel). ¿Aviso también de "se acerca la ventana estimada"? Decide.
+5. TENANCY Y PII: el historial se consulta por NIF de la entidad (dato
+   del tenant); las concesiones son públicas en la BDNS. Reglas de
+   aislamiento por tenant para historial y esperadas por entidad.
+6. QUÉ QUEDA FUERA (anti-sobre-ingeniería): sin predicciones de importe,
+   sin probabilidad de concesión (rechazado ya en ADR-006), sin
+   scraping de bases; solo BDNS estructurada en esta fase.
+
+Método: lee ADR-001/002/005/006 y el contrato real en
+src/ongs_ai/dominio/ antes de decidir; cada decisión con alternativas
+consideradas y por qué NO. Caso de contraste obligatorio: el histórico
+real de Aniridia (el operador lo tiene en investigacion/, NO lo copies a
+git — referencia sus patrones: IRPF anual con ventana ~mayo-junio,
+mantenimiento CAM otoño, asociacionismo octubre).
+
+Cierre: python -m pytest -q VERDE (sin código nuevo, el nº real de tests
+no cambia), commit ÚNICO "ADR-007: ... (N tests, sin código)", git status
+antes del add, push. Preguntas no bloqueantes AGRUPADAS al final.
+```
+
+#### PROMPT-026 — F-consola.3: filtros en todas las pantallas + acciones desde la web · MODELO: Sonnet · ORDEN: 3º (tras cerrar el ADR-007; nada en paralelo)
+
+```
+POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda,
+elige la opción más conservadora/reversible y DOCUMENTA la decisión; ante
+ambigüedad de alcance, lo literal del prompt y anota lo excluido; jamás
+inventes datos ni mediciones. Reglas de oro de CLAUDE.md por encima de
+todo. Antes de tocar un fichero grande, Grep al símbolo y lee el rango.
+La pizarra (engineering/06_*) la mantiene SOLO el arquitecto: no cierres
+items, no te declares APROBADO — incluye en tu commit los cambios de
+engineering/06_* que ya estén en el working tree, tal cual.
+
+TAREA (petición literal del operador): "en todas las pantallas debería
+existir filtros y desde la propia web debería poderse invocar a
+recalcular o reejecutar comandos para actualizar las convocatorias y
+hacer la revisión de a qué convocatorias se puede presentar cada
+asociación". Dos bloques:
+
+A. FILTROS EN TODAS LAS VISTAS DE CONSOLA (GET puro, server-side, mismo
+   patrón que /consola/convocatorias; SIN JavaScript nuevo):
+A1. /consola/entidades: además del texto actual, filtro por CCAA y por
+   tipo (captadas / candidatas / todas).
+A2. /consola/cruce: filtro por estado del cruce (elegible / no evaluable /
+   no elegible / todos), score mínimo (número entero 0-100) y texto sobre
+   el objeto de la convocatoria.
+A3. /consola/mapa: filtro por CCAA y texto sobre nombre.
+A4. /consola (dashboard): las "oportunidades más afines" ganan filtro por
+   CCAA del perfil. Formularios con method="get", valores actuales
+   preservados en los inputs, y enlace "limpiar filtros" en cada vista.
+A5. Tests HTTP por vista: con filtro que acierta, filtro que vacía (y
+   mensaje de vacío correcto), y combinación de filtros.
+
+B. ACCIONES DEL OPERADOR DESDE LA WEB (sin terminal):
+B1. Prepara la reutilización: mueve la función de orquestación de la
+   pasada de ingesta de scripts/ejecutar_ingesta.py a un módulo
+   importable del paquete (p. ej. src/ongs_ai/servicios/pasada_ingesta.py)
+   — MOVIMIENTO mecánico con sus tests detrás; el script queda como CLI
+   fino que importa de ahí (mismo patrón que preparar_demo). Nada de
+   duplicar lógica.
+B2. Registro de ejecución en app.state (dataclass en memoria, v1 local
+   monopuesto): estado (inactivo / en curso desde T / terminado en T con
+   resumen / fallido con motivo degradado), y CANDADO: si hay una pasada
+   en curso, un segundo disparo responde "ya hay una pasada en curso" sin
+   lanzar nada (threading.Lock, no cola de trabajos — anti-sobre-
+   ingeniería, documenta la decisión).
+B3. POST /consola/acciones/actualizar-convocatorias: lanza EN HILO DE
+   FONDO la pasada completa (batería del 024 + filtros del 023 + matching
+   y propuestas, lo mismo que el CLI). POST
+   /consola/acciones/recalcular-revisiones: solo la fase de matching/
+   propuestas sobre lo ya ingerido (sin red). Ambas rutas con las MISMAS
+   dependencias de consola (solo_loopback + operador_actual).
+B4. UI en el dashboard: sección "Estado de la plataforma" con los dos
+   botones, el estado actual y el resumen de la última ejecución
+   (métricas del runner tal cual, incluidas descartadas del 023 y
+   fallos IA). Mientras hay pasada en curso los botones se deshabilitan
+   (atributo disabled según estado; el refresco es recargar la página —
+   documenta que v1 no lleva polling).
+B5. EJECUTOR INYECTABLE: las rutas reciben el ejecutor de pasadas vía
+   app.state (factory por entorno) — en tests SIEMPRE un stub síncrono
+   (sin hilos ni red ni CLI: el hilo real solo existe en producción).
+   Tests: candado (segundo POST con pasada en curso), estado renderizado
+   en el dashboard, acción de recalcular llama al stub correcto, y las
+   rutas exigen loopback+operador (404/redirect como el resto).
+B6. La ingesta desde la web usa la suscripción Claude del operador igual
+   que el CLI (freno de plan intacto); si el CLI no está disponible en el
+   entorno del servidor, degradación limpia ya existente — verifica que
+   el resumen la refleja, no la ocultes.
+
+C. python -m pytest -q VERDE con el nº REAL de tests. NO toques contrato,
+   máquina de estados, scoring ni la ingesta en sí (solo la mueves).
+
+Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
+git status antes del add (JAMÁS investigacion/), git push. Tras el
+commit: arranca el servidor real, dispara "Actualizar convocatorias"
+desde el navegador, espera el final y pega el estado/resumen que muestra
+el dashboard — verificación humana del ciclo completo sin terminal.
 ```
 
 ### Bandeja del OPERADOR
 
-- **Pegar PROMPT-023 (Sonnet) — COPIA la versión ACTUAL del 06.** Al cerrar,
-  ejecuta `python scripts/reevaluar_ingesta.py --simular` y pégame el plan.
-- El enlace mágico ahora abre una página con botón "Entrar en tu panel" —
-  puedes abrirlo las veces que quieras en ventana normal; solo el clic consume.
-  (uvicorn con --reload ya sirve el código nuevo; si dudas, reinícialo.)
-- Sigue usando la consola y apunta TODO lo raro — tu lista = spec de
-  F-consola.3 y de la calibración del scoring.
+- Si aún no lo hiciste: `python scripts/reevaluar_ingesta.py --aplicar` (limpieza
+  del plan ya visto). La repoblación buena llegará con el PROMPT-024 (búsquedas
+  dirigidas) — puedes esperar a pegarlo y hacer una sola pasada completa.
+- **Pegar PROMPT-024 (Sonnet) — COPIA la versión ACTUAL del 06.** Al cerrar,
+  la propia sesión ejecuta la pasada real y te dice cuáles del histórico de
+  Aniridia ya aparecen.
+- **Los tres prompts están AHORA COMPLETOS en la cola, en orden: 024 (Sonnet,
+  cobertura) → 025/ADR-007 (OPUS, diseño de recurrentes) → 026/F-consola.3
+  (Sonnet, filtros + botones web). DE UNO EN UNO: pega el siguiente solo
+  cuando yo haya auditado y cerrado el anterior.** El 025 es un ADR: sesión
+  con OPUS, solo escribe diseño, sin código.
+- Guarda tu PDF como investigacion/aniridia_concesiones_2022_2024.pdf —
+  investigacion/ NO viaja a git. Lo usaremos como caso de contraste del ADR-007.
+- Sigue apuntando lo raro — tus dos hallazgos (honestidad y cobertura) han
+  definido los dos últimos prompts.
 - Commit de docs cuando quieras:
   `git add engineering/ && git commit -m "Pizarra (docs)" && git push`
-- Decisión pendiente (sin prisa): el teléfono público de ABAIMAR está commiteado
-  en scripts/preparar_demo.py (repo privado). ¿Lo dejamos o placeholder?
-- En espera (tras tu veredicto de la demo): entidad piloto, SMTP real +
-  smoke_email, programación diaria de la ingesta, censo completo FEDER.
+- Decisión pendiente (sin prisa): teléfono público de ABAIMAR commiteado en
+  scripts/preparar_demo.py (repo privado). ¿Lo dejamos o placeholder?
+- En espera: retirar demo-conv-1/2/3 (próximo prompt de código), entidad
+  piloto, SMTP real + smoke_email, programación diaria, censo FEDER.
 
 ### Backlog
 
+- **F-consola.3 (tras ADR-007, intercambiable en orden si el operador lo pide):
+  filtros + acciones web.** (a) Filtros en TODAS las pantallas de la consola
+  (dashboard, entidades, cruce, mapa — convocatorias ya los tiene): texto,
+  ámbito/CCAA, estado, score mínimo en cruce; GET puro, sin JS nuevo. (b)
+  Botones de acción del operador desde la web: "Actualizar convocatorias"
+  (relanza la pasada de ingesta con la batería del 024) y "Recalcular
+  revisiones" (matching/propuestas) SIN terminal — diseño conservador:
+  ejecución en hilo de fondo con candado anti-doble-pasada, estado visible
+  (en curso / último resumen / errores degradados), solo rol operador,
+  localhost. Redactado: YA EN COLA como PROMPT-026.
+
+- **ADR-007 (Opus) — SIGUIENTE tras cerrar PROMPT-024: vigilancia de
+  recurrentes + historial por NIF + convocatorias esperadas.** Nueva fuente
+  /concesiones/busqueda de la BDNS (descubrir el parámetro real de filtro por
+  beneficiario/NIF — `descripcionBeneficiario` NO filtra, verificado):
+  historial de subvenciones de una entidad (el PDF de Aniridia, automatizado).
+  REQUISITOS DEL OPERADOR (2026-07-22, literales): derivar "convocatorias
+  esperadas" de ediciones anuales recurrentes; mostrarlas con estado tipo
+  "PENDIENTE DE PUBLICAR" aunque la edición del año no exista aún; estimar la
+  FECHA en torno a la cual debería salir a partir de las fechas de ediciones de
+  años anteriores (estimación honesta: rango/mes, jamás certeza); avisar al
+  publicarse la edición real y enlazarla con la esperada. Toca dominio
+  (probable ConvocatoriaEsperada/HistorialConcesion, relación con Match) →
+  ADR obligatorio. El prompt lo redacta el arquitecto al llegarle el turno.
 - F5 preparación asistida (alcance AMPLIADO por el operador: checklist documental con
   gap + borradores de todos los entregables; probable ADR DocumentoRequerido).
 - ADR-003: redundancia de ámbito en el contrato (`ambito_geografico`+region/provincia
