@@ -9,6 +9,10 @@ esquema.
 Agrupación por estado (ADR-004 §2.3/§2.5 — lo que el panel necesita ver):
     - `propuestas_pendientes`: PROPUESTA (elegibles, ya avisadas, esperando
       decisión de la entidad).
+    - `aceptadas`: ACEPTADA (la entidad aceptó, aún no arrancó preparación —
+      paso intermedio de la máquina de estados entre PROPUESTA y
+      EN_PREPARACION). Remate de auditoría F4.2: omisión del prompt
+      original, no decisión de diseño.
     - `en_preparacion`: EN_PREPARACION.
     - `presentadas`: PRESENTADA (terminal).
     - `descartadas`: DESCARTADA (terminal).
@@ -23,10 +27,6 @@ Cada lista ordenada por la fecha del último asiento del match
 (`match.asientos[-1].timestamp`), MÁS RECIENTE PRIMERO — decisión
 conservadora documentada: no la fija el ADR, y "lo más reciente arriba" es
 el orden estándar de un panel de actividad.
-
-NOTA de alcance (dejada fuera, ver resumen de cierre): ACEPTADA no tiene
-cubo propio en este read model — el prompt de F4.2 solo enumera los cinco
-anteriores. Un match en ACEPTADA no aparece en ningún cubo por ahora.
 """
 from __future__ import annotations
 
@@ -39,6 +39,7 @@ from ongs_ai.dominio.puertos import RepositorioMatches
 @dataclass(frozen=True)
 class ResumenPanel:
     propuestas_pendientes: tuple[Match, ...]
+    aceptadas: tuple[Match, ...]
     en_preparacion: tuple[Match, ...]
     presentadas: tuple[Match, ...]
     descartadas: tuple[Match, ...]
@@ -65,6 +66,7 @@ def resumen_panel(entidad_id: str, almacen: RepositorioMatches) -> ResumenPanel:
         propuestas_pendientes=_mas_recientes_primero(
             matches_por_estado.get(EstadoMatch.PROPUESTA, [])
         ),
+        aceptadas=_mas_recientes_primero(matches_por_estado.get(EstadoMatch.ACEPTADA, [])),
         en_preparacion=_mas_recientes_primero(
             matches_por_estado.get(EstadoMatch.EN_PREPARACION, [])
         ),

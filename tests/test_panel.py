@@ -71,6 +71,8 @@ def _match_en_estado(match_id: str, entidad_id: str, estado_final: EstadoMatch, 
         match, a_estado=EstadoMatch.ACEPTADA, transicion_id=f"t2-{match_id}",
         motivo="aceptada", actor=ActorAsiento.ENTIDAD, timestamp=ts,
     )
+    if estado_final == EstadoMatch.ACEPTADA:
+        return match
     match = transicionar(
         match, a_estado=EstadoMatch.EN_PREPARACION, transicion_id=f"t3-{match_id}",
         motivo="en preparación", actor=ActorAsiento.ENTIDAD, timestamp=ts,
@@ -86,6 +88,7 @@ def _match_en_estado(match_id: str, entidad_id: str, estado_final: EstadoMatch, 
 def test_agrupa_por_estado_correctamente(almacen):
     entidad_id = "ent-panel-1"
     almacen.guardar_match(_match_en_estado("m-propuesta", entidad_id, EstadoMatch.PROPUESTA, T0))
+    almacen.guardar_match(_match_en_estado("m-aceptada", entidad_id, EstadoMatch.ACEPTADA, T0))
     almacen.guardar_match(_match_en_estado("m-preparacion", entidad_id, EstadoMatch.EN_PREPARACION, T0))
     almacen.guardar_match(_match_en_estado("m-presentada", entidad_id, EstadoMatch.PRESENTADA, T0))
     almacen.guardar_match(_match_en_estado("m-descartada", entidad_id, EstadoMatch.DESCARTADA, T0))
@@ -96,6 +99,7 @@ def test_agrupa_por_estado_correctamente(almacen):
     resumen = resumen_panel(entidad_id, almacen)
 
     assert [m.match_id for m in resumen.propuestas_pendientes] == ["m-propuesta"]
+    assert [m.match_id for m in resumen.aceptadas] == ["m-aceptada"]
     assert [m.match_id for m in resumen.en_preparacion] == ["m-preparacion"]
     assert [m.match_id for m in resumen.presentadas] == ["m-presentada"]
     assert [m.match_id for m in resumen.descartadas] == ["m-descartada"]
@@ -152,6 +156,7 @@ def test_entidad_sin_matches_devuelve_todos_los_cubos_vacios(almacen):
     resumen = resumen_panel("ent-sin-matches", almacen)
 
     assert resumen.propuestas_pendientes == ()
+    assert resumen.aceptadas == ()
     assert resumen.en_preparacion == ()
     assert resumen.presentadas == ()
     assert resumen.descartadas == ()
@@ -165,6 +170,7 @@ def test_aislamiento_por_tenant_entidad_a_no_ve_nada_de_b(almacen):
         _match_detectada_no_elegible("m-a-no-elegible", entidad_a, "motivo de A", T0)
     )
     almacen.guardar_match(_match_en_estado("m-b-propuesta", entidad_b, EstadoMatch.PROPUESTA, T0))
+    almacen.guardar_match(_match_en_estado("m-b-aceptada", entidad_b, EstadoMatch.ACEPTADA, T0))
     almacen.guardar_match(
         _match_detectada_no_elegible("m-b-no-elegible", entidad_b, "motivo de B", T0)
     )
@@ -175,14 +181,15 @@ def test_aislamiento_por_tenant_entidad_a_no_ve_nada_de_b(almacen):
     todos_los_ids_de_a = {
         m.match_id
         for cubo in (
-            resumen_a.propuestas_pendientes, resumen_a.en_preparacion, resumen_a.presentadas,
-            resumen_a.descartadas, resumen_a.detectadas_no_elegibles,
+            resumen_a.propuestas_pendientes, resumen_a.aceptadas, resumen_a.en_preparacion,
+            resumen_a.presentadas, resumen_a.descartadas, resumen_a.detectadas_no_elegibles,
         )
         for m in cubo
     }
     assert todos_los_ids_de_a == {"m-a-propuesta", "m-a-no-elegible"}
     assert all(m.entidad_id == entidad_a for cubo in (
-        resumen_a.propuestas_pendientes, resumen_a.en_preparacion, resumen_a.presentadas,
-        resumen_a.descartadas, resumen_a.detectadas_no_elegibles,
+        resumen_a.propuestas_pendientes, resumen_a.aceptadas, resumen_a.en_preparacion,
+        resumen_a.presentadas, resumen_a.descartadas, resumen_a.detectadas_no_elegibles,
     ) for m in cubo)
     assert resumen_a.descartadas == ()  # A no tiene descartadas; sobre todo, no la de B
+    assert resumen_a.aceptadas == ()  # A no tiene aceptadas; sobre todo, no la de B

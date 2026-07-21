@@ -70,13 +70,14 @@ siguiente acción según este documento.
 
 ## ESTADO VIVO
 
-- **2026-07-21 — PROMPT-010 / F4.1 CERRADO Y AUDITADO: APROBADO, HECHO 9f8c732,
-  155 tests, pushed.** `detectar_y_proponer` calca ADR-004 §5: pre-puerta
-  (VERIFICADA + plazo abierto), upsert por pareja, transiciones solo legales,
-  terminales respetados, regresión sin retroceso ni re-aviso, puerto `Notificador` +
-  stub con degradación limpia, ids/reloj inyectados. Detalle → histórico.
-  **Estado de fases: F1 ✔ · ADR-002 ✔ · F3 ✔ · F2 ✔ · F2-fix ✔ · F4.1 ✔ ·
-  SIGUIENTE: PROMPT-011 (F4.2) EN COLA · Esqueleto app y F5 después.**
+- **2026-07-21 — F4.2 CERRADA Y AUDITADA: APROBADO, HECHO fb95b4a, 176 tests,
+  pushed.** Email SMTP real (cliente inyectado, plantilla pura sin datos internos,
+  config solo en factory) + read model del panel por tenant + smoke manual. Detalle
+  → histórico. Dos remates van en PROMPT-012: cubo ACEPTADA del panel (omisión del
+  prompt del arquitecto) y patrón gitignore que no cubría `R2_asociaciones_*`.
+  **Estado de fases: F1 ✔ · ADR-002 ✔ · F3 ✔ · F2 ✔ · F2-fix ✔ · F4.1 ✔ · F4.2 ✔ ·
+  SIGUIENTE: PROMPT-012 (scraper FEDER + remates) · Después: esqueleto app / F5.**
+- F4.1 cerrada y auditada (HECHO 9f8c732, 155 tests) — detalle en histórico.
 - **2026-07-21 — INCIDENTE DE PIZARRA, resuelto:** el mount pisó el 06 del disco con
   una copia del día 18 (commiteada sin querer en 61d76a4). Recuperado desde
   `9f8c732` + cierre de F4.1. Consecuencia: regla nueva de gobernanza en el
@@ -92,12 +93,15 @@ siguiente acción según este documento.
   como nueva propuesta. Email solo elegibles; panel muestra todo. Email real y read
   model → F4.2 (en cola). UI del panel → esqueleto app (backlog).
 - **Investigaciones:** R1 entregada y commiteada (`investigacion/R1_*` — BDNS como
-  fuente única del sector público, verificado 3-0). R2 con DOS entregables fuera de
-  git: `asociaciones_EERR_directorio.xlsx` + informe (9 directorios con veredicto de
-  scrapeabilidad, 81 asociaciones con contacto, candidatas a piloto: GERNA, PERA,
-  ARER, ASERCA, ABAIMAR, red ASEM) y `R2_asociaciones_eerr_tanda1.xlsx` (35 de FEDER
-  pág. 1, subconjunto anterior). Extracción completa FEDER (~476) = 2ª pasada o
-  feature de plataforma. ⚠ Dato personal: responsable = operador, no difundir.
+  fuente única del sector público, verificado 3-0). **R2 consolidada en
+  `asociaciones_EERR_directorio_v2.xlsx` (2026-07-21): 364 entidades** (maestro
+  anterior + 96 del listado web de FEDER, 29 nuevas tras dedupe por nombre y email;
+  candidatas a piloto señaladas en el informe: GERNA, PERA, ARER, ASERCA, ABAIMAR,
+  red ASEM). Techo de la vía web: el conversor corta el HTML largo de FEDER
+  (~96/476) → la extracción COMPLETA va por script con red real en la máquina del
+  operador = **PROMPT-012 en cola**. Enriquecimiento con personas visibles: SOLO
+  sobre las asociaciones que se vayan a contactar (decisión del operador vigente).
+  ⚠ Dato personal: fuera de git, responsable = operador, no difundir.
 - **Lección del ritual** (4 casos): resúmenes/acciones de sesiones exceden lo real —
   mensaje de commit (P-002), "decisión conservadora" que rompía el puerto (P-004),
   auto-cierre "APROBADO" (P-006), y pizarra pisada por el mount (2026-07-21).
@@ -174,16 +178,75 @@ Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
 `git status` antes del add, `git push` al terminar.
 ```
 
+#### PROMPT-012 — Utilidad: extracción completa FEDER + remates de auditoría F4.2 · MODELO: Sonnet · ORDEN: 1º (nada en paralelo)
+
+```
+POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda
+de implementación, elige la opción más conservadora/reversible y DOCUMENTA
+la decisión en el resumen final; ante ambigüedad de alcance, implementa lo
+literal del prompt y anota lo que dejaste fuera; jamás inventes datos ni
+mediciones (si necesitas un dato que no tienes, esa sí es pregunta
+legítima); las preguntas no bloqueantes van AGRUPADAS al final del
+trabajo, no en medio. Reglas de oro de CLAUDE.md por encima de todo — si
+el prompt y CLAUDE.md chocan, gana CLAUDE.md y me lo señalas. Antes de
+tocar un fichero grande, Grep al símbolo y lee el rango — nunca el
+fichero entero. La pizarra (engineering/06_*) la mantiene SOLO el
+arquitecto: no cierres items, no te declares APROBADO, no muevas nada al
+histórico — limítate a incluir en tu commit los cambios de
+engineering/06_* que ya estén en el working tree, tal cual estén.
+
+TAREA: dos remates de la auditoría de F4.2 + utilidad de captación (script
+manual que extrae el directorio COMPLETO de entidades asociadas de FEDER,
+~476, para el fichero de prospección del operador).
+
+0a. REMATE PANEL: añade el cubo `aceptadas` (EstadoMatch.ACEPTADA) a
+   `ResumenPanel` y `resumen_panel` en `src/ongs_ai/servicios/panel.py`
+   (mismo orden más-reciente-primero) + test. Era omisión del prompt de
+   F4.2, no decisión de diseño.
+0b. REMATE GITIGNORE: el patrón `investigacion/asociaciones*` NO cubre
+   `investigacion/R2_asociaciones_eerr_tanda1.xlsx`. Sustitúyelo por
+   `investigacion/*asociaciones*` y verifica con `git check-ignore` que
+   cubre TODOS los ficheros de datos presentes en investigacion/ que
+   contengan "asociaciones" (los R1_* del catálogo siguen trackeados).
+
+1. `scripts/scrape_feder.py` — script MANUAL con red real (documenta en el
+   docstring que hace red y NO corre en CI): recorre la paginación real de
+   https://www.enfermedades-raras.org/movimiento-asociativo/entidades-asociadas
+   (descubre el parámetro de paginación del HTML real: enlace "página
+   siguiente" / ?page=N), con pausa de 1-2 s entre peticiones y User-Agent
+   identificable. De cada entidad del listado extrae: nombre, dirección,
+   teléfono(s), email(s), web y provincia/CCAA si constan. Sé robusto a
+   ficheros de ficha incompletos (dato ausente = vacío, jamás inventado).
+2. Salida: `investigacion/asociaciones_feder_completo.xlsx` y `.csv`
+   (comprueba con `git check-ignore` que el patrón
+   `investigacion/asociaciones*` los cubre — los DATOS JAMÁS se commitean).
+   Imprime al final un resumen: nº entidades, nº con email, nº con
+   teléfono, nº de páginas recorridas.
+3. La función de PARSEO (HTML → registros) va separada del transporte y se
+   testea HERMÉTICAMENTE con un fixture HTML pequeño y sintético en
+   tests/fixtures/ (estructura real, datos ficticios) — pytest sin red.
+4. `python -m pytest -q` VERDE. El commit lleva script + test + fixture,
+   NUNCA los datos extraídos. Incluye los cambios de engineering/06_* del
+   working tree tal cual.
+
+Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
+`git status` antes del add, `git push`. Tras el commit, EJECUTA el script
+una vez (tú tienes red), verifica el resumen impreso contra el contador
+del directorio (~476) y repórtalo — los ficheros de datos quedan en
+investigacion/, sin commitear.
+```
+
 ### Bandeja del OPERADOR
 
-- **Commitear esta pizarra reconstruida** (en tu terminal):
-  `git add engineering/ && git commit -m "Pizarra: recuperada desde 9f8c732 + cierre F4.1 (docs)" && git push`
-- Pegar PROMPT-011 (F4.2) en Claude Code (Sonnet) y avisar para auditoría.
+- Pegar PROMPT-012 en Claude Code (Sonnet) y avisar para auditoría. Al cerrarse,
+  EJECUTAR `python scripts/scrape_feder.py` (red real, lo pide el propio prompt) y
+  reportar el resumen.
+- `python scripts/smoke_email.py` cuando tengas buzón/credenciales SMTP (variables
+  ONGS_AI_SMTP_*) — verifica el aviso por email real. Puede esperar.
 - **Entidad piloto:** elegir 2-3 candidatas del informe R2 (GERNA, PERA, ARER,
   ASERCA, ABAIMAR, red ASEM…) y pedir al arquitecto el mensaje de propuesta.
-- Para el smoke de email de F4.2: decidir buzón/credenciales SMTP (puede esperar).
 - Decidir si continúa como arquitecto esta sesión o la del día 19 — UNA sola activa
-  (regla nueva del traspaso).
+  (regla del traspaso). Esta sesión está al día a fecha 2026-07-21.
 
 ### Backlog
 
@@ -193,8 +256,8 @@ Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
   gap + borradores de todos los entregables; probable ADR DocumentoRequerido).
 - ADR-003: redundancia de ámbito en el contrato (`ambito_geografico`+region/provincia
   vs `ambito_territorial_requerido` sin consumir) — limpiar.
-- 2ª pasada R2: extracción sistemática FEDER (~476) + enriquecimiento de personas
-  visibles solo de las asociaciones a contactar.
+- Enriquecimiento de personas visibles: solo de las asociaciones a contactar (tras
+  elegir candidatas; la extracción FEDER completa ya está en cola como PROMPT-012).
 - Adapters privados de ingesta (FEDER, la Caixa, ONCE) + agregador SolucionesONG.
 - Proveedor LLM real para la capa IA (hoy ExplicadorStub) — decisión del arquitecto.
 - Endurecer test anti-hardcoding. · Filtro `tipoBeneficiario` de BDNS sin ejercer.

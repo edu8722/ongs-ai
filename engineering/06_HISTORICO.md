@@ -2,6 +2,19 @@
 
 ## Semana 2026-07-20/26
 
+- **PROMPT-011 — F4.2: adapter de email SMTP real + read model del panel** (Sonnet) —
+  **HECHO fb95b4a, APROBADO (auditoría del arquitecto), 176 tests. F4.2 CERRADA.**
+  `adapters/avisos/email_smtp.py` (NotificadorEmailSMTP con cliente inyectado — cero
+  sockets en tests; `construir_aviso_email` pura, texto plano, sin ids internos ni
+  costes; degrada limpio con contadores enviados/omitidos/fallidos) + `factory.py`
+  (config SOLO aquí vía ONGS_AI_SMTP_*; stub en entorno test) + `servicios/panel.py`
+  (resumen_panel por tenant, 5 cubos, más-reciente-primero; DETECTADA-elegible
+  transitoria se omite sin lanzar) + `scripts/smoke_email.py` manual fuera de CI.
+  Remates a PROMPT-012 (detectados en el cierre): cubo ACEPTADA ausente (omisión del
+  prompt del ARQUITECTO, no de la sesión) y patrón gitignore
+  `investigacion/asociaciones*` que NO cubre `R2_asociaciones_*` (la sesión dejó ese
+  fichero fuera del commit a mano — correcto).
+
 - **PROMPT-010 — F4.1: persistencia de matches + propuesta automática y sobrevenida**
   (Sonnet) — **HECHO 9f8c732, APROBADO (auditoría del arquitecto, 2026-07-21, desde
   git), 155 tests. F4.1 CERRADA.** `servicios/propuestas.py` (detectar_y_proponer:
