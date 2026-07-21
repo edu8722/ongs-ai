@@ -70,6 +70,30 @@ siguiente acción según este documento.
 
 ## ESTADO VIVO
 
+- **2026-07-22 — FEEDBACK DURO DEL OPERADOR (asumido por el arquitecto):** tres
+  demos seguidas fallidas o decepcionantes. Causas reconocidas: (1) la consola de
+  F-consola.1 es funcional pero SIN el diseño del prototipo, que era la expectativa
+  explícita; (2) los scripts de demo del ARQUITECTO eran desechables sin tests —
+  violando el espíritu del ritual — y el enlace mágico de semilla da 400 (sospecha:
+  formato de fechas script-vs-app en la comparación SQL; se confirmará con test, no
+  con hipótesis); (3) demasiadas instrucciones de demo dispersas en la pizarra.
+  REPLANTEAMIENTO: **MÁXIMA PRIORIDAD = PROMPT-021** — consola con el diseño del
+  prototipo + demo de UN comando testeada + fix del 400 con evidencia. Los bloques
+  de demo dispersos se RETIRAN de esta pizarra; los scripts desechables del
+  arquitecto (demo_semilla_local.py, demo_entidad_real.py) se retiran en el 021.
+  F5 y F-consola.3 esperan.
+- **2026-07-21 — PROMPT-020 / F-consola.1 CERRADO: APROBADO, HECHO f870150, 308
+  tests, pushed. LA CONSOLA DEL OPERADOR EXISTE:** prospeccion/ + importador
+  (verificado contra el CSV real: 511 filas, 0 descartes), scoring determinista con
+  test de ANCLAJE a evaluar_elegibilidad, rol operador con separación verificada por
+  inspección de rutas, solo_loopback con 404 (mejora sobre spec). Respuestas del
+  arquitecto a las preguntas de la sesión: (1) "nacional (sede Murcia)" → corregido
+  EN EL DATO del maestro CSV (no special-case en código); (2) web/tamano en
+  Prospecto: APROBADO (aditivo, fuera de contrato); (3) fórmula de afinidad
+  temática: auditada y APROBADA (solape sobre tipos detectados, neutral sin señal).
+  **SIN PROMPTS EN COLA. Siguientes prompts al llegarles el turno: F-consola.2
+  (conversión Prospecto→Entidad, tras usar la consola) · F-consola.3 (resto de
+  vistas) · F5 (tras la demo real del operador).**
 - **2026-07-21 — PROMPT-019 / ADR-006 CERRADO: APROBADO, HECHO 838373a.** Consola
   del operador con separación por construcción, Prospecto fuera del contrato,
   scoring determinista honesto (tres rechazos a la hipótesis del prototipo: sin
@@ -240,89 +264,105 @@ resumen impreso — verificación humana del pipeline completo con tu
 suscripción.
 ```
 
-#### PROMPT-020 — F-consola.1: consola del operador + prospectos + scoring · MODELO: Sonnet · ORDEN: 1º (nada en paralelo)
+#### PROMPT-021 — Consola con el diseño del prototipo + demo de UN comando + fix del enlace · MODELO: Sonnet · ORDEN: 1º (nada en paralelo) · MÁXIMA PRIORIDAD
 
 ```
-Ejecuta ÍNTEGRO el "PROMPT F-consola.1" tal como está escrito en
-engineering/ADR-006-consola-operador-y-scoring.md §7 (commit 838373a) —
-léelo de ese fichero del repo, que es inmutable, y aplícale estas
-RESPUESTAS DEL OPERADOR/ARQUITECTO a las preguntas §6 del mismo ADR:
+POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda
+de implementación, elige la opción más conservadora/reversible y DOCUMENTA
+la decisión en el resumen final; ante ambigüedad de alcance, implementa lo
+literal del prompt y anota lo que dejaste fuera; jamás inventes datos ni
+mediciones (si necesitas un dato que no tienes, esa sí es pregunta
+legítima); las preguntas no bloqueantes van AGRUPADAS al final del
+trabajo, no en medio. Reglas de oro de CLAUDE.md por encima de todo — si
+el prompt y CLAUDE.md chocan, gana CLAUDE.md y me lo señalas. Antes de
+tocar un fichero grande, Grep al símbolo y lee el rango — nunca el
+fichero entero. La pizarra (engineering/06_*) la mantiene SOLO el
+arquitecto: no cierres items, no te declares APROBADO, no muevas nada al
+histórico — limítate a incluir en tu commit los cambios de
+engineering/06_* que ya estén en el working tree, tal cual estén.
 
-- §6.1 clave de operador: ONGS_AI_OPERADOR_CLAVE por entorno. CONFORME.
-- §6.2 mapeo del maestro (era el bloqueante — RESUELTO): fichero
-  investigacion/asociaciones_maestro.csv (CSV UTF-8 con cabecera, 511
-  filas de datos, FUERA de git — verifica con git check-ignore antes de
-  cualquier add). Columnas EXACTAS:
-  "Nombre" → nombre · "Web" → web · "Email" → email (puede venir vacío o
-  con varios separados por ';' → coge el primero) · "Teléfono" → telefono
-  · "Ámbito" → ambito (valores libres: nacional/autonomico/local/vacío —
-  normaliza con el criterio de ADR-002, sin mapeo → vacío) · "CCAA" →
-  region (texto libre, puede ser "(sin CCAA)" → trátalo como vacío) ·
-  "Enfermedad / Colectivo" → enfermedad_o_colectivo · "Personas visibles
-  (cargo)" → nota de contacto personal (⚠ dato personal: se guarda en el
-  Prospecto pero JAMÁS aparece en logs ni en fixtures) · "Tamaño" →
-  descriptivo libre · "Fuente(s)" y "Notas" → metadatos de procedencia.
-  Filas sin nombre se descartan con contador; nada se inventa.
-- §6.3 formato: CSV UTF-8 (el de arriba). Sin dependencia nueva.
-- §6.4 pesos del score: 70/30 con capado de no elegibles. CONFORME.
-- §6.5 importe: RANGO [suma mínimos, suma máximos] etiquetado techo
-  teórico. CONFORME.
-- §6.6 señales aparte (capacidad solo con datos económicos; plazo
-  siempre, como urgencia). CONFORME.
-- §6.7 hosting: NO se despliega; consola solo 127.0.0.1. CONFORME.
+CONTEXTO: el operador ha probado la consola y las demos y el veredicto es
+"no es lo que espero ver". Este prompt lo arregla ENTERO o no vale: al
+cerrar, UN comando debe dejar TODO listo y la consola debe parecerse al
+prototipo. Tres bloques, los tres obligatorios:
 
-Sobre la nota de reutilización de ADR-006 §2.6: intenta el refactor de
-las sub-evaluaciones de elegibilidad.py a cumple|incumple|pendiente SIN
-cambiar el comportamiento observable (mismos tests verdes); si resulta
-arriesgado, duplica con test de equivalencia, y documenta cuál elegiste.
+A. LA CONSOLA CON EL DISEÑO DEL PROTOTIPO
+A1. `prototipos/ongs-ai-prototipo.html` es la SPEC VISUAL (léelo entero:
+   paleta, tipografía, tarjetas, claro/oscuro, estructura de pantallas).
+   Extrae su CSS a un estático de la consola
+   (`web/estaticos/consola.css`, servido por la app — monta StaticFiles
+   SOLO para la consola) y replica en plantillas Jinja reales:
+   - Dashboard (/consola): métrica arriba (nº candidatas, nº
+     convocatorias vivas, importe potencial agregado) + "Oportunidades
+     más afines ahora" (top cruces por score, tarjetas como el prototipo).
+   - /consola/convocatorias: listado real (BDNS ya ingestada) con
+     filtros básicos por texto/ámbito/estado (GET, server-side).
+   - /consola/entidades: candidatas (Prospectos) + entidades captadas,
+     buscables por nombre/CCAA.
+   - /consola/cruce: la matriz "a qué puede presentarse, cuántos puntos y
+     qué importe" — por perfil seleccionado, sus convocatorias ordenadas
+     por score con el desglose motivo a motivo (cumple/incumple/
+     pendiente_de_dato) y el rango de importe techo-teórico.
+   - Mapa de sedes: EXCEPCIÓN CONSCIENTE autorizada por el arquitecto —
+     Leaflet/OSM vía CDN SOLO en plantillas de consola (localhost,
+     operador); degrada limpio sin red (la página funciona sin mapa).
+     Las direcciones salen del campo de notas del Prospecto si existen.
+   Los datos SIEMPRE de los almacenes reales vía los servicios ya
+   auditados (resumen_prospeccion, evaluar_afinidad, listar_*): NADA
+   hardcodeado, NADA sintético en la consola.
+A2. Accesibilidad como el prototipo: foco visible, contraste AA,
+   reduced-motion. Autoescape intacto.
 
-Recuerda el preámbulo de política de decisión del propio prompt del ADR
-(incluida la regla de pizarra) y su ritual de cierre completo (commit
-único con nº REAL de tests, git status antes del add — JAMÁS el CSV del
-maestro —, push). Incluye engineering/06_* del working tree tal cual
-(cierre de PROMPT-019 + reconstrucción del histórico por el arquitecto).
+B. DEMO DE UN COMANDO, TESTEADA
+B1. `scripts/preparar_demo.py` — deja TODO listo e imprime el resultado:
+   1) si la BD tiene <20 convocatorias VERIFICADAS y hay red, ejecuta una
+   pasada de ingesta corta (reutiliza ejecutar_ingesta con flags
+   conservadores; sin red o si falla → sigue con lo que haya, avisando);
+   2) siembra/actualiza la entidad demo (perfil ABAIMAR con supuestos
+   marcados, email del operador por argumento) usando LAS MISMAS factorías
+   y relojes de la app — ni un timestamp fabricado a mano;
+   3) importa los prospectos del CSV si existe y aún no están;
+   4) genera enlace mágico de entidad Y deja instrucción de acceso de
+   operador, e IMPRIME en un bloque final claro: URL del panel de entidad
+   (enlace confirmable), URL de la consola, la clave de operador que debe
+   estar en el entorno, y el comando uvicorn exacto.
+   La ORQUESTACIÓN es una función testeada con stubs en CI (como
+   ejecutar_ingesta); el script es el envoltorio con red/disco.
+B2. RETIRA `scripts/demo_semilla_local.py` y `scripts/demo_entidad_real.py`
+   (desechables del arquitecto, sin tests — sustituidos por esto).
+B3. Sección nueva y ÚNICA de demo en README o docs/DEMO.md: los 4 pasos
+   exactos (variables de entorno → preparar_demo → uvicorn → abrir URLs).
+
+C. EL 400 DEL ENLACE, CON EVIDENCIA
+C1. Test de integración que reproduce el camino EXACTO que falla: sembrar
+   entidad+token contra AlmacenSQLite en fichero temporal (no :memory:)
+   con el MISMO código que usará preparar_demo, levantar la app con ese
+   almacén, GET /login/confirmar?token=... → debe crear sesión. Hazlo
+   fallar primero si el bug existe (sospecha del arquitecto: formato/zona
+   de fechas entre el sembrado y el reloj de la app en la comparación SQL
+   de expira_en — verifica leyendo consumir_token y los ISO reales), luego
+   arregla la CAUSA en el sitio correcto (probablemente normalizar
+   fechas a UTC-aware en la frontera del almacén) y deja el test verde.
+C2. Suite completa VERDE con el nº REAL de tests.
+
+Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
+git status antes del add (JAMÁS los CSV/xlsx de investigacion/), git push.
+Tras el commit, EJECUTA tú mismo la secuencia completa de docs/DEMO.md de
+punta a punta (tú tienes red y navegador headless no hace falta: verifica
+al menos que preparar_demo imprime URLs y que GET /consola y el enlace de
+entidad devuelven 200/303 vía TestClient o curl) y pega el resultado.
 ```
-
-- El prompt de F5 se redacta tras la demo del operador (su feedback alimenta la
-  spec; probable ADR-006 con DocumentoRequerido).
 
 ### Bandeja del OPERADOR
 
-- **DEMO REAL de la visión (decidida 2026-07-21):** protagonista = ABAIMAR con
-  datos públicos + supuestos marcados; primero para el operador. Guion completo en
-  `investigacion/demo_real_guion.md`; perfil en `scripts/demo_entidad_real.py`
-  (desechable, no commitear). ORDEN: cerrar PROMPT-018 → seguir el guion → feedback
-  al arquitecto (alimenta la spec de F5 y la versión enseñable del guion).
-- **Commit de docs YA** (sella la reconstrucción del histórico):
-  `git add engineering/ && git commit -m "Pizarra: historico reconstruido + cierre ADR-006 (docs)" && git push`
-- Pegar PROMPT-020 (F-consola.1, Sonnet) — COPIA la versión ACTUAL del 06.
-- **LA DEMO REAL YA ES EJECUTABLE**: seguir `investigacion/demo_real_guion.md`
-  (perfil ABAIMAR + pasada real + panel). Tu feedback alimenta la spec de F5.
-- Programar la ingesta periódica: Programador de tareas de Windows → diaria (p. ej.
-  08:00) ejecutando `scripts/ejecutar_ingesta.py` con tus flags — lo afinamos juntos
-  cuando digas.
-- **VER LA APP (5 min):** `cd C:\dev\ongs-ai` → `set ONGS_AI_ENV=test` →
-  `set ONGS_AI_SECRET_KEY=prueba-local` → `set PYTHONPATH=src` →
-  `python -m uvicorn ongs_ai.web.app:app --reload --port 8001` → abrir
-  http://localhost:8001/login. (Modo test: memoria + SMTP stub, el enlace sale en la
-  consola. PYTHONPATH temporal hasta que PROMPT-015 arregle el empaquetado.)
-- **LA DEMO, ahora sí** (ventana nueva de terminal):
-  1. `cd C:\dev\ongs-ai` → `git pull` (por si acaso) → cerrar cualquier uvicorn viejo.
-  2. `set ONGS_AI_SECRET_KEY=prueba-local` + `set ONGS_AI_SMTP_HOST=localhost` +
-     `set ONGS_AI_SMTP_REMITENTE=demo@localhost` +
-     `set ONGS_AI_APP_BASE_URL=http://localhost:8001` (SIN ONGS_AI_ENV).
-  3. `python -m uvicorn ongs_ai.web.app:app --reload --port 8001`
-  4. En OTRA ventana: `python scripts/demo_semilla_local.py edu8720@gmail.com` y abrir
-     el enlace impreso. Panel → aceptar una propuesta → verla cambiar de cubo.
-  5. Contar al arquitecto qué se ve y qué mejorarías — ese feedback alimenta la spec de F5.
-- `python scripts/smoke_email.py` cuando tengas buzón/credenciales SMTP (variables
-  ONGS_AI_SMTP_*) — verifica el aviso por email real. Puede esperar.
-- Cuando haya relación con FEDER (p. ej. vía piloto): pedirles el censo completo de
-  entidades asociadas — el listado web solo expone ~272 de 476 (hallazgo PROMPT-012).
-- **Entidad piloto:** elegir 2-3 candidatas del informe R2 (GERNA, PERA, ARER,
-  ASERCA, ABAIMAR, red ASEM…) y pedir al arquitecto el mensaje de propuesta.
-- Decidir si continúa como arquitecto esta sesión o la del día 19 — UNA sola activa
-  (regla del traspaso). Esta sesión está al día a fecha 2026-07-21.
+- **Pegar PROMPT-021 (Sonnet) — COPIA la versión ACTUAL del 06.** Es LA prioridad;
+  no hay más demos que probar hasta que cierre. Al cerrar: seguir docs/DEMO.md
+  (4 pasos, un comando de preparación) y dar el veredicto.
+- Commit de docs pendiente cuando quieras:
+  `git add engineering/ && git commit -m "Pizarra (docs)" && git push`
+- En espera (sin acción tuya hasta después del 021): entidad piloto (candidatas en
+  la consola cuando la veas bien), SMTP real, programación diaria de la ingesta,
+  censo completo FEDER.
 
 ### Backlog
 

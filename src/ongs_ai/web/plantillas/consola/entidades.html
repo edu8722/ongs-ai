@@ -1,26 +1,70 @@
-{% extends "base.html" %}
+{% extends "consola/base_consola.html" %}
 {% block titulo %}Entidades — Consola ONGs-AI{% endblock %}
 {% block contenido %}
-<h1>Entidades captadas ({{ entidades|length }})</h1>
-<form method="post" action="/consola/logout" class="logout"><button type="submit">Salir</button></form>
-<p><a href="/consola/prospectos">Ver prospectos</a></p>
+<span class="eyebrow">Captación y cartera</span>
+<h1 style="font-size:26px;font-weight:660;margin-top:8px">Entidades</h1>
+<p class="lead">Entidades captadas y candidatas (prospectos) de la plataforma, buscables por nombre y comunidad autónoma.</p>
 
-{% for entidad in entidades %}
-{% set resumen = resumenes[entidad.entidad_id] %}
-<div class="match">
-  <strong>{{ entidad.nombre_legal }}</strong>
-  {% if entidad.region %} — {{ entidad.region }}{% endif %}
-  — {{ entidad.enfermedad_o_colectivo }}
-  <div class="motivo">
-    Elegibles: {{ resumen.numero_elegibles }} ·
-    Importe potencial (techo teórico, nunca predicción):
-    {{ resumen.importe_potencial_minimo_centimos|euros }} – {{ resumen.importe_potencial_maximo_centimos|euros }}
-    {% if resumen.numero_elegibles_sin_importe_publicado %}
-      (+{{ resumen.numero_elegibles_sin_importe_publicado }} elegibles sin importe publicado)
-    {% endif %}
-  </div>
+<form class="buscador" method="get" action="/consola/entidades">
+  <input type="search" name="q" placeholder="Buscar por nombre…" value="{{ filtro_q }}" aria-label="Buscar por nombre">
+  <input type="text" name="ccaa" placeholder="CCAA…" value="{{ filtro_ccaa }}" aria-label="Filtrar por comunidad autónoma">
+  <button type="submit">Buscar</button>
+</form>
+
+<div class="section-h"><h2>Entidades captadas ({{ filas_entidades|length }})</h2></div>
+<div class="grid">
+  {% for fila in filas_entidades %}
+  <a class="card click" href="/consola/cruce?perfil={{ fila.clave_perfil }}">
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+      <div class="conv-title">{{ fila.nombre }}</div>
+      <span class="badge accent">{{ fila.perfil.forma_juridica.tipo|forma_label }}</span>
+    </div>
+    <div style="color:var(--text-2);font-size:13.5px;margin-top:6px">
+      {{ fila.perfil.enfermedad_o_colectivo }}{% if fila.perfil.region %} · {{ fila.perfil.region }}{% endif %}
+    </div>
+    <div class="conv-money">
+      <div>
+        <span class="amt num">{{ fila.resumen.numero_elegibles }}</span>
+        <div class="lbl">convocatorias elegibles</div>
+      </div>
+      <div style="text-align:right">
+        <span class="amt num">{{ fila.resumen.importe_potencial_minimo_centimos|euros }} – {{ fila.resumen.importe_potencial_maximo_centimos|euros }}</span>
+        <div class="lbl">importe potencial (techo teórico)</div>
+      </div>
+    </div>
+  </a>
+  {% else %}
+  <div class="empty">Sin entidades captadas todavía.</div>
+  {% endfor %}
 </div>
-{% else %}
-<p>Sin entidades captadas todavía.</p>
-{% endfor %}
+
+<div class="section-h"><h2>Candidatas — prospectos ({{ filas_prospectos|length }})</h2></div>
+<div class="grid">
+  {% for fila in filas_prospectos %}
+  <a class="card click" href="/consola/cruce?perfil={{ fila.clave_perfil }}">
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+      <div class="conv-title">{{ fila.nombre }}</div>
+      <span class="badge neutral">Candidata</span>
+    </div>
+    <div style="color:var(--text-2);font-size:13.5px;margin-top:6px">
+      {{ fila.perfil.enfermedad_o_colectivo or "sin colectivo registrado" }}{% if fila.perfil.region %} · {{ fila.perfil.region }}{% endif %}
+    </div>
+    <div class="conv-money">
+      <div>
+        <span class="amt num">{{ fila.resumen.numero_elegibles }}</span>
+        <div class="lbl">convocatorias elegibles</div>
+      </div>
+      <div style="text-align:right">
+        <span class="amt num">{{ fila.resumen.importe_potencial_minimo_centimos|euros }} – {{ fila.resumen.importe_potencial_maximo_centimos|euros }}</span>
+        <div class="lbl">importe potencial (techo teórico)</div>
+      </div>
+    </div>
+    {% if fila.perfil.contacto and fila.perfil.contacto.email %}
+    <div style="margin-top:8px;font-size:12.5px;color:var(--text-2)">Contacto: {{ fila.perfil.contacto.email }}</div>
+    {% endif %}
+  </a>
+  {% else %}
+  <div class="empty">Sin prospectos importados todavía — ejecuta <code>scripts/preparar_demo.py</code> o <code>scripts/importar_prospectos.py</code>.</div>
+  {% endfor %}
+</div>
 {% endblock %}

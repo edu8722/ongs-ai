@@ -12,20 +12,27 @@ from __future__ import annotations
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Callable
 
 from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.staticfiles import StaticFiles
 
 from ongs_ai.adapters.avisos.factory import crear_enviador_enlace_acceso
 from ongs_ai.adapters.persistencia.factory import crear_almacen
 from ongs_ai.web.rutas import auth, panel, propuestas
 from ongs_ai.web.rutas.consola import auth as consola_auth
+from ongs_ai.web.rutas.consola import convocatorias as consola_convocatorias
+from ongs_ai.web.rutas.consola import cruce as consola_cruce
 from ongs_ai.web.rutas.consola import entidades as consola_entidades
+from ongs_ai.web.rutas.consola import mapa as consola_mapa
+from ongs_ai.web.rutas.consola import panel as consola_panel
 from ongs_ai.web.rutas.consola import prospectos as consola_prospectos
 
 SEGUNDOS_SESION_30_DIAS = 60 * 60 * 24 * 30
 TTL_TOKEN_DEFECTO = timedelta(minutes=60)
+_RAIZ_ESTATICOS_CONSOLA = Path(__file__).resolve().parent / "estaticos"
 
 
 def _reloj_utc() -> datetime:
@@ -70,12 +77,24 @@ def crear_app(
         operador_clave if operador_clave is not None else os.environ.get("ONGS_AI_OPERADOR_CLAVE")
     )
 
+    # StaticFiles SOLO para la consola (PROMPT-021 A1) — nunca montado bajo
+    # una ruta de tenant.
+    app.mount(
+        "/consola/estaticos",
+        StaticFiles(directory=str(_RAIZ_ESTATICOS_CONSOLA)),
+        name="consola_estaticos",
+    )
+
     app.include_router(auth.router)
     app.include_router(panel.router)
     app.include_router(propuestas.router)
     app.include_router(consola_auth.router)
+    app.include_router(consola_panel.router)
     app.include_router(consola_prospectos.router)
     app.include_router(consola_entidades.router)
+    app.include_router(consola_convocatorias.router)
+    app.include_router(consola_cruce.router)
+    app.include_router(consola_mapa.router)
     return app
 
 

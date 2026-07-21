@@ -1,0 +1,86 @@
+{% extends "consola/base_consola.html" %}
+{% block titulo %}Mapa — Consola ONGs-AI{% endblock %}
+{% block cabecera_extra %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+{% endblock %}
+{% block contenido %}
+<span class="eyebrow">Captación · mapa de asociaciones</span>
+<h1 style="font-size:26px;font-weight:660;margin-top:8px">Dónde está cada candidata</h1>
+<p class="lead">Sedes de las candidatas (prospectos) sobre el mapa. La ubicación es el CENTROIDE de su comunidad autónoma — aproximada, no una geocodificación exacta — con su dirección tal cual consta en las notas del prospecto, si existen.</p>
+
+{% if not sedes %}
+<div class="empty">Sin prospectos importados todavía.</div>
+{% else %}
+<div class="mapwrap">
+  <div class="maplist" id="mapList">
+    {% for s in sedes %}
+    <div class="acard" data-id="{{ s.prospecto_id }}">
+      <button class="anbtn" onclick="focusAsoc('{{ s.prospecto_id }}')" aria-label="Centrar {{ s.nombre }} en el mapa" {% if s.lat is none %}disabled title="Sin CCAA reconocida: no se puede situar en el mapa"{% endif %}>{{ s.nombre }}</button>
+      <div class="aloc">{{ s.region or "CCAA sin dato" }}</div>
+      {% if s.direccion_nota %}<div class="adir">{{ s.direccion_nota }}</div>{% endif %}
+      <div class="acon">
+        {% if s.web %}<a href="https://{{ s.web }}" target="_blank" rel="noopener"><span class="k">WEB</span> {{ s.web }}</a>{% endif %}
+        {% if s.telefono %}<a href="tel:{{ s.telefono }}"><span class="k">TEL</span> {{ s.telefono }}</a>{% endif %}
+        {% if s.email %}<a href="mailto:{{ s.email }}"><span class="k">MAIL</span> {{ s.email }}</a>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <div id="mapEl"></div>
+  <div class="map-fallback" id="mapFallback">El mapa necesita conexión para cargar las teselas y la librería Leaflet. La lista de la izquierda funciona igual: dirección, web y contacto de cada candidata.</div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block script_extra %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script type="application/json" id="sedes-mapa">{{ sedes_json|default("[]") }}</script>
+<script>
+"use strict";
+(function(){
+  var contenedor = document.getElementById("mapEl");
+  if (!contenedor) return;
+  var datosEl = document.getElementById("sedes-mapa");
+  var sedes = [];
+  try { sedes = JSON.parse(datosEl ? datosEl.textContent : "[]"); } catch (e) { sedes = []; }
+
+  if (typeof L === "undefined") {
+    contenedor.style.display = "none";
+    var fallback = document.getElementById("mapFallback");
+    if (fallback) fallback.style.display = "grid";
+    return;
+  }
+
+  var mapa = L.map("mapEl", {scrollWheelZoom: false, attributionControl: true}).setView([40.0, -3.4], 5.3);
+  var tema = document.documentElement.getAttribute("data-theme") === "dark" ? "dark_all" : "light_all";
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/" + tema + "/{z}/{x}/{y}{r}.png", {
+    subdomains: "abcd", maxZoom: 19, attribution: "© OpenStreetMap · © CARTO"
+  }).addTo(mapa);
+
+  var marcadores = {};
+  sedes.forEach(function(s){
+    var popup = "<span class=\"pn\">" + s.nombre + "</span>" +
+      (s.direccion_nota ? "<span class=\"pd\">" + s.direccion_nota + "</span>" : "");
+    marcadores[s.id] = L.marker([s.lat, s.lon]).addTo(mapa).bindPopup(popup)
+      .on("click", function(){ resaltar(s.id); });
+  });
+
+  function resaltar(id){
+    document.querySelectorAll(".acard").forEach(function(el){
+      el.classList.toggle("on", el.dataset.id === id);
+    });
+    var tarjeta = document.querySelector('.acard[data-id="' + id + '"]');
+    if (tarjeta) tarjeta.scrollIntoView({block: "nearest", behavior: "smooth"});
+  }
+
+  window.focusAsoc = function(id){
+    var m = marcadores[id];
+    if (!m) { resaltar(id); return; }
+    var reducida = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    mapa.flyTo(m.getLatLng(), 9, {duration: reducida ? 0 : 0.6, animate: !reducida});
+    m.openPopup();
+    resaltar(id);
+  };
+})();
+</script>
+{% endblock %}

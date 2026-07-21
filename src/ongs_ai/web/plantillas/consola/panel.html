@@ -1,0 +1,53 @@
+{% extends "consola/base_consola.html" %}
+{% block titulo %}Resumen — Consola ONGs-AI{% endblock %}
+{% block contenido %}
+<span class="eyebrow">Panel de la plataforma</span>
+<h1 style="font-size:32px;font-weight:680;margin-top:8px">Cada entidad, sus subvenciones y cuánto podría percibir.</h1>
+<p class="lead">ONGs-AI ingiere las convocatorias públicas, las cruza con la cartera de cada entidad y candidata, y calcula a cuáles puede presentarse, con qué afinidad y qué importe potencial.</p>
+
+<div class="stats">
+  <div class="stat">
+    <div class="k">Candidatas</div>
+    <div class="v">{{ numero_candidatas }}</div>
+    <div class="s">prospectos en captación · {{ numero_entidades }} entidades captadas</div>
+  </div>
+  <div class="stat">
+    <div class="k">Convocatorias vivas</div>
+    <div class="v">{{ convocatorias_vivas }}</div>
+    <div class="s">de la BDNS y otras fuentes ingeridas</div>
+  </div>
+  <div class="stat">
+    <div class="k">Importe potencial agregado</div>
+    <div class="v accent num">{{ importe_potencial_agregado|euros }}</div>
+    <div class="s">techo teórico, suma de cruces elegibles</div>
+  </div>
+</div>
+
+<div class="section-h"><h2>Oportunidades más afines ahora</h2><a class="chip" href="/consola/cruce">Ver el cruce completo</a></div>
+<div class="grid">
+  {% for op in oportunidades %}
+  <a class="card click" href="/consola/cruce?perfil={{ op.clave_perfil }}">
+    <div style="display:flex;gap:14px;align-items:center">
+      <div class="score-ring" style="background:conic-gradient(var(--ok) {{ op.resultado.score * 3.6 }}deg, var(--surface-2) 0);">
+        <div style="position:absolute;inset:5px;border-radius:50%;background:var(--surface)"></div><span style="color:var(--ok)">{{ op.resultado.score }}</span>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div class="m-title" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ op.convocatoria.objeto }}</div>
+        <div class="m-sub"><span>{{ op.perfil_nombre }}</span></div>
+      </div>
+    </div>
+    <div class="conv-money">
+      <div>
+        <span class="amt num">{{ op.resultado.importe_potencial_minimo_centimos|euros }}</span>
+        <span style="color:var(--text-3)">a</span>
+        <span class="amt num">{{ op.resultado.importe_potencial_maximo_centimos|euros }}</span>
+        <div class="lbl">importe potencial estimado</div>
+      </div>
+      <span class="badge ok"><span class="dot"></span>Elegible</span>
+    </div>
+  </a>
+  {% else %}
+  <div class="empty">Sin cruces elegibles todavía — ingiere convocatorias o siembra candidatas.</div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,11 +1,20 @@
 """Adapter de persistencia en memoria pura — para tests. Sin red, sin disco."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ongs_ai.dominio.entidades import Convocatoria, Entidad
 from ongs_ai.dominio.matching_estado import Match
 from ongs_ai.prospeccion.modelo import Prospecto
+
+
+def _normalizar_utc(momento: datetime) -> datetime:
+    """Mismo criterio que el adapter SQLite (PROMPT-021 C1): un naive se asume
+    UTC, para no comparar naive vs aware (`TypeError` en Python) ni depender de
+    que el llamador sea disciplinado."""
+    if momento.tzinfo is None:
+        return momento.replace(tzinfo=timezone.utc)
+    return momento.astimezone(timezone.utc)
 
 
 class AlmacenMemoria:
@@ -70,13 +79,13 @@ class AlmacenMemoria:
     def crear_token(self, entidad_id: str, token_hash: str, expira_en: datetime) -> None:
         self._tokens_acceso[token_hash] = {
             "entidad_id": entidad_id,
-            "expira_en": expira_en,
+            "expira_en": _normalizar_utc(expira_en),
             "usado": False,
         }
 
     def consumir_token(self, token_hash: str, ahora: datetime) -> str | None:
         registro = self._tokens_acceso.get(token_hash)
-        if registro is None or registro["usado"] or ahora >= registro["expira_en"]:
+        if registro is None or registro["usado"] or _normalizar_utc(ahora) >= registro["expira_en"]:
             return None
         registro["usado"] = True
         return registro["entidad_id"]

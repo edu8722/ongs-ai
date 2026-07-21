@@ -1,0 +1,54 @@
+{% extends "consola/base_consola.html" %}
+{% block titulo %}Convocatorias — Consola ONGs-AI{% endblock %}
+{% block contenido %}
+<span class="eyebrow">Explorador de oportunidades</span>
+<h1 style="font-size:26px;font-weight:660;margin-top:8px">Convocatorias ingeridas ({{ filas|length }})</h1>
+<p class="lead">El catálogo que la plataforma agrega de la BDNS y otras fuentes.</p>
+
+<form class="buscador" method="get" action="/consola/convocatorias">
+  <input type="search" name="texto" placeholder="Buscar por texto…" value="{{ filtro_texto }}" aria-label="Buscar por texto">
+  <select name="ambito" aria-label="Filtrar por ámbito">
+    <option value="">Todos los ámbitos</option>
+    {% for a in ambitos %}
+    <option value="{{ a.value }}" {% if filtro_ambito == a.value %}selected{% endif %}>{{ a|ambito_label }}</option>
+    {% endfor %}
+  </select>
+  <select name="estado" aria-label="Filtrar por estado">
+    <option value="">Todos los estados</option>
+    {% for e in estados %}
+    <option value="{{ e.value }}" {% if filtro_estado == e.value %}selected{% endif %}>{{ e|estado_ingesta_label }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit">Filtrar</button>
+</form>
+
+<div class="grid conv" style="margin-top:16px">
+  {% for fila in filas %}
+  {% set c = fila.convocatoria %}
+  <article class="card">
+    <div class="conv-head">
+      <div class="conv-title">{{ c.objeto }}</div>
+      <span class="badge accent">{{ c.ambito_geografico|ambito_label }}</span>
+    </div>
+    <div style="color:var(--text-2);font-size:13px;margin-top:6px">{{ c.fuente.portal }}</div>
+    <div class="conv-meta">
+      <span class="badge neutral">{{ c.region or c.provincia or "—" }}</span>
+      <span class="badge neutral">{{ c.beneficiarios_elegibles[:60] }}{% if c.beneficiarios_elegibles|length > 60 %}…{% endif %}</span>
+      <span class="badge {{ 'ok' if c.estado_ingesta.value == 'verificada' else 'neutral' }}">{{ c.estado_ingesta|estado_ingesta_label }}</span>
+      {% if not fila.vigente %}<span class="badge no">Cerrada</span>{% endif %}
+    </div>
+    <div class="conv-money">
+      <div><span class="amt num">{{ c.cuantias.importe_maximo_centimos|euros }}</span><div class="lbl">cuantía máxima</div></div>
+      <div style="text-align:right">
+        <div class="plazo {{ 'soon' if fila.dias_hasta_cierre is not none and fila.dias_hasta_cierre <= 7 else '' }} num">
+          {{ fila.dias_hasta_cierre ~ " días" if fila.dias_hasta_cierre is not none else "sin fecha" }}
+        </div>
+        <div class="lbl">para el cierre</div>
+      </div>
+    </div>
+  </article>
+  {% else %}
+  <div class="empty">Sin convocatorias que coincidan con el filtro.</div>
+  {% endfor %}
+</div>
+{% endblock %}

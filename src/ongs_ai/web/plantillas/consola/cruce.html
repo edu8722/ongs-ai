@@ -1,0 +1,112 @@
+{% extends "consola/base_consola.html" %}
+{% block titulo %}Cruce y puntos — Consola ONGs-AI{% endblock %}
+{% block contenido %}
+<span class="eyebrow">Cruce entidad/candidata × subvención</span>
+<h1 style="font-size:26px;font-weight:660;margin-top:8px">A qué puede presentarse, cuántos puntos y qué importe</h1>
+<p class="lead">Elige un perfil. La plataforma evalúa cada convocatoria con el guardarraíl de elegibilidad (motivo a motivo) y le asigna una puntuación de afinidad y un importe potencial estimado.</p>
+
+{% if not opciones %}
+<div class="empty">Sin entidades ni candidatas todavía — siembra la demo o importa prospectos.</div>
+{% else %}
+<form class="selectrow" method="get" action="/consola/cruce">
+  <select name="perfil" aria-label="Perfil" onchange="this.form.submit()">
+    {% for o in opciones %}
+    <option value="{{ o.clave }}" {% if o.clave == clave_perfil_actual %}selected{% endif %}>{{ o.nombre }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="chip">Ver</button>
+  <span class="badge {{ 'accent' if info_perfil.es_entidad else 'neutral' }}">
+    {{ "Entidad captada" if info_perfil.es_entidad else "Candidata (prospecto)" }}
+  </span>
+</form>
+
+<div class="ent-head">
+  <div style="font-weight:620;font-size:16px">{{ nombre_perfil_actual }}</div>
+  <div class="row">
+    <span class="f">Forma jurídica <b>{{ info_perfil.forma_juridica|forma_label if info_perfil.forma_juridica else "sin dato" }}</b></span>
+    {% if info_perfil.es_entidad %}
+    <span class="f">Ingresos anuales <b class="num">{{ info_perfil.ingresos_centimos|euros }}</b></span>
+    <span class="f">Utilidad pública <b>{{ "Sí" if info_perfil.utilidad_publica else "No" }}</b></span>
+    {% else %}
+    <span class="f">Antigüedad/ingresos <b>pendiente de dato (candidata sin verificar)</b></span>
+    {% endif %}
+  </div>
+</div>
+
+<div style="margin-top:6px">
+  {% for e in evaluaciones %}
+  {% set r = e.resultado %}
+  {% set c = e.convocatoria %}
+  {% set color = "var(--ok)" if e.estado_cruce == "elegible" else ("var(--warn)" if e.estado_cruce == "no_evaluable" else "var(--no)") %}
+  <details class="match">
+    <summary class="m-top">
+      <div class="score-ring" style="background:conic-gradient({{ color }} {{ r.score * 3.6 }}deg, var(--surface-2) 0);">
+        <div style="position:absolute;inset:5px;border-radius:50%;background:var(--surface)"></div><span style="color:{{ color }}">{{ r.score }}</span>
+      </div>
+      <div>
+        <div class="m-title">{{ c.objeto }}</div>
+        <div class="m-sub">
+          {% if e.estado_cruce == "elegible" %}<span class="badge ok"><span class="dot"></span>Elegible</span>
+          {% elif e.estado_cruce == "no_evaluable" %}<span class="badge warn"><span class="dot"></span>No evaluable</span>
+          {% else %}<span class="badge no"><span class="dot"></span>No elegible</span>{% endif %}
+          <span class="badge neutral">{{ c.ambito_geografico|ambito_label }}</span>
+          <span class="badge neutral num">{{ c.cuantias.importe_maximo_centimos|euros }} máx.</span>
+          <span class="badge neutral num">{{ (r.dias_hasta_cierre ~ " días") if r.dias_hasta_cierre is not none else "sin fecha" }}</span>
+        </div>
+      </div>
+      <div class="m-right">
+        <div class="amt num" style="color:{{ 'var(--text)' if r.elegible else 'var(--text-3)' }}">
+          {{ (r.importe_potencial_minimo_centimos|euros ~ " a " ~ r.importe_potencial_maximo_centimos|euros) if r.elegible else "—" }}
+        </div>
+        <div class="amtl">importe potencial</div>
+      </div>
+    </summary>
+    <div class="m-body">
+      <div class="m-cols">
+        <div>
+          <div class="eyebrow" style="margin-bottom:10px">Afinidad temática</div>
+          <div class="factor">
+            <div class="fh"><b>Solape con actividades declaradas</b><span class="fp">{{ r.afinidad_tematica }}/100</span></div>
+            <div class="meter"><i style="width:{{ r.afinidad_tematica }}%"></i></div>
+          </div>
+          <div class="import-box">
+            <div class="big num" style="color:{{ 'var(--accent-ink)' if r.elegible else 'var(--text-3)' }}">
+              {% if r.elegible %}
+                {% if r.importe_no_publicado %}Cuantía no publicada{% else %}{{ r.importe_potencial_minimo_centimos|euros }} · {{ r.importe_potencial_maximo_centimos|euros }}{% endif %}
+              {% else %}No elegible{% endif %}
+            </div>
+            <div class="cap">
+              {% if r.elegible %}Rango de importe potencial (techo teórico, nunca predicción).
+              {% else %}No entra en el reparto: no se estima importe.{% endif %}
+            </div>
+          </div>
+          {% if r.capacidad_ejecucion %}
+          <div class="model-note" style="margin-top:14px">{{ r.capacidad_ejecucion }}</div>
+          {% endif %}
+        </div>
+        <div>
+          <div class="eyebrow" style="margin-bottom:10px">Guardarraíl de elegibilidad</div>
+          <ul class="reasons">
+            {% for d in r.detalle_por_requisito %}
+            <li>
+              {% if d.estado.value == "cumple" %}<span class="ic ok">✓</span>
+              {% elif d.estado.value == "incumple" %}<span class="ic no">✕</span>
+              {% else %}<span class="ic warn">?</span>{% endif %}
+              <div><b>{{ d.requisito|requisito_label }}.</b> {{ d.explicacion }}</div>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </details>
+  {% else %}
+  <div class="empty">Sin convocatorias ingeridas todavía.</div>
+  {% endfor %}
+</div>
+
+<div class="model-note">
+  <b>Modelo de afinidad (ADR-006 §2.5).</b> El score 0-100 combina cobertura de requisitos (70) y afinidad temática (30). Un requisito duro incumplido o pendiente de dato impide la elegibilidad, aunque el resto encaje. El importe potencial es un rango techo-teórico a partir de la cuantía publicada — nunca una predicción de probabilidad de concesión.
+</div>
+{% endif %}
+{% endblock %}

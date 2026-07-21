@@ -54,7 +54,7 @@ def enviar_clave(request: Request, clave: str = Form(...)):
             status_code=401,
         )
     request.session[CLAVE_SESION_OPERADOR] = True
-    return RedirectResponse(url="/consola/prospectos", status_code=303)
+    return RedirectResponse(url="/consola", status_code=303)
 
 
 @router.post("/logout")

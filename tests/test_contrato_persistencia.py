@@ -271,6 +271,38 @@ def test_token_inexistente_falla(almacen):
     assert almacen.consumir_token("hash-que-no-existe", T0) is None
 
 
+def test_token_normaliza_offset_no_utc_al_expirar(almacen):
+    """PROMPT-021 C1 (evidencia): un `expira_en` aware pero en OTRO huso que UTC
+    (p. ej. verano de Madrid, +02:00) debía compararse mal si el almacén se
+    limitara a comparar el ISO crudo -- "23:00:00+02:00" ordena LEXICOGRÁFICAMENTE
+    por delante de "22:00:00+00:00" aunque en UTC real las 23:00+02:00 sean las
+    21:00 UTC, ya anteriores. Ancla que el almacén normaliza a UTC antes de
+    comparar (`_normalizar_utc`)."""
+    tz_madrid_verano = timezone(timedelta(hours=2))
+    expira_local = datetime(2026, 7, 21, 23, 0, 0, tzinfo=tz_madrid_verano)  # == 21:00 UTC
+    ahora_utc = datetime(2026, 7, 21, 22, 0, 0, tzinfo=timezone.utc)  # posterior real
+
+    almacen.crear_token("ent-tz", "hash-tz-offset", expira_local)
+
+    assert almacen.consumir_token("hash-tz-offset", ahora_utc) is None
+
+
+def test_token_naive_se_asume_utc(almacen):
+    """Un `expira_en`/`ahora` naive (sin tzinfo) se trata como UTC -- mismo
+    huso que `reloj()` en toda la app -- en vez de romper la comparación o
+    lanzar `TypeError` (memoria comparaba objetos `datetime` directamente)."""
+    expira_naive = datetime(2026, 7, 21, 10, 0, 0)  # sin tzinfo, se asume UTC
+    ahora_dentro = datetime(2026, 7, 21, 9, 0, 0, tzinfo=timezone.utc)
+    ahora_fuera = datetime(2026, 7, 21, 11, 0, 0, tzinfo=timezone.utc)
+
+    almacen.crear_token("ent-naive", "hash-naive", expira_naive)
+
+    assert almacen.consumir_token("hash-naive", ahora_fuera) is None
+
+    almacen.crear_token("ent-naive-2", "hash-naive-2", expira_naive)
+    assert almacen.consumir_token("hash-naive-2", ahora_dentro) == "ent-naive-2"
+
+
 # --- listar_convocatorias (ADR-006 §2.7 — lectura aditiva) ----------------
 
 

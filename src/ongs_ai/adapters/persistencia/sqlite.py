@@ -20,7 +20,7 @@ import logging
 import sqlite3
 import threading
 from dataclasses import asdict
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from enum import Enum
 from pathlib import Path
 
@@ -66,6 +66,18 @@ def _migrar_columna_si_falta(cur: sqlite3.Cursor, tabla: str, columna: str, tipo
     columnas = {fila[1] for fila in cur.execute(f"PRAGMA table_info({tabla})").fetchall()}
     if columna not in columnas:
         cur.execute(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo_sql}")
+
+
+def _normalizar_utc(momento: datetime) -> datetime:
+    """Frontera del almacén (PROMPT-021 C1): `expira_en`/`ahora` se comparan
+    como TEXTO ISO-8601 en SQL (`expira_en > ?`), correcto SOLO si ambos lados
+    llevan siempre el mismo offset. Un `datetime` naive (sin tzinfo) se asume
+    UTC -- el mismo huso que usa todo el resto de la app (`reloj()` siempre
+    devuelve `datetime.now(timezone.utc)`) -- para que nunca se compare un ISO
+    sin sufijo de zona contra uno con `+00:00`."""
+    if momento.tzinfo is None:
+        return momento.replace(tzinfo=timezone.utc)
+    return momento.astimezone(timezone.utc)
 
 
 def _codificar_json(obj: object) -> str:
@@ -460,14 +472,14 @@ class AlmacenSQLite:
                 "VALUES (?, ?, ?, NULL) "
                 "ON CONFLICT(token_hash) DO UPDATE SET "
                 "entidad_id = excluded.entidad_id, expira_en = excluded.expira_en, usado_en = NULL",
-                (token_hash, entidad_id, expira_en.isoformat()),
+                (token_hash, entidad_id, _normalizar_utc(expira_en).isoformat()),
             )
             self._conn.commit()
 
     def consumir_token(self, token_hash: str, ahora: datetime) -> str | None:
         """UPDATE atómico (check-and-mark-used en una sola sentencia SQL): solo
         marca usado si existía, no había expirado y no se había usado ya."""
-        ahora_iso = ahora.isoformat()
+        ahora_iso = _normalizar_utc(ahora).isoformat()
         with self._lock:
             cur = self._conn.execute(
                 "UPDATE tokens_acceso SET usado_en = ? "

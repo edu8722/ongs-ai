@@ -1,13 +1,15 @@
-{% extends "base.html" %}
-{% block titulo %}Consola del operador — ONGs-AI{% endblock %}
+{% extends "consola/base_consola.html" %}
+{% block titulo %}Entrar — Consola ONGs-AI{% endblock %}
 {% block contenido %}
-<h1>Consola del operador</h1>
+<span class="eyebrow">Acceso restringido</span>
+<h1 style="font-size:26px;font-weight:660;margin-top:8px">Consola del operador</h1>
+<p class="lead">Solo accesible en local (loopback) con la clave de operador.</p>
 {% if mensaje %}
   <p class="mensaje">{{ mensaje }}</p>
 {% endif %}
-<form method="post" action="/consola/login">
-  <label for="clave">Clave de operador</label><br>
-  <input type="password" id="clave" name="clave" required>
+<form class="login-form" method="post" action="/consola/login">
+  <label for="clave">Clave de operador</label>
+  <input type="password" id="clave" name="clave" required autofocus>
   <button type="submit">Entrar</button>
 </form>
 {% endblock %}

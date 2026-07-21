@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6f7f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0c1211" media="(prefers-color-scheme: dark)">
+<title>{% block titulo %}Consola — ONGs-AI{% endblock %}</title>
+<link rel="stylesheet" href="/consola/estaticos/consola.css">
+{% block cabecera_extra %}{% endblock %}
+</head>
+<body>
+<a class="skip" href="#main">Saltar al contenido</a>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="/consola"><span class="mark">O</span>ONGs<span style="color:var(--accent-ink)">·</span>AI</a>
+    <nav class="tabs" aria-label="Secciones de la consola">
+      <a href="/consola" {% if vista_activa == "resumen" %}aria-current="page"{% endif %}>Resumen</a>
+      <a href="/consola/convocatorias" {% if vista_activa == "convocatorias" %}aria-current="page"{% endif %}>Convocatorias</a>
+      <a href="/consola/entidades" {% if vista_activa == "entidades" %}aria-current="page"{% endif %}>Entidades</a>
+      <a href="/consola/cruce" {% if vista_activa == "cruce" %}aria-current="page"{% endif %}>Cruce y puntos</a>
+      <a href="/consola/mapa" {% if vista_activa == "mapa" %}aria-current="page"{% endif %}>Mapa</a>
+    </nav>
+    {% if operador_autenticado %}
+    <form class="logout" method="post" action="/consola/logout">
+      <button type="submit">Salir</button>
+    </form>
+    {% endif %}
+    <button class="theme-btn" id="themeBtn" type="button" title="Cambiar tema" aria-label="Cambiar tema claro/oscuro">◐</button>
+  </div>
+</header>
+
+<main class="view" id="main">
+  <div class="wrap">
+    {% block contenido %}{% endblock %}
+  </div>
+</main>
+
+<footer class="pie"><div class="wrap">ONGs-AI · consola del operador · datos reales de la plataforma. Pulsa <span class="kbd">◐</span> para claro/oscuro.</div></footer>
+
+<script>
+"use strict";
+(function(){
+  var boton = document.getElementById("themeBtn");
+  var raiz = document.documentElement;
+  try {
+    var guardado = window.localStorage.getItem("ongs-ai-tema");
+    if (guardado === "dark") raiz.setAttribute("data-theme", "dark");
+    else if (guardado === "light") raiz.setAttribute("data-theme", "light");
+  } catch (e) { /* almacenamiento no disponible: se sigue con la preferencia del sistema */ }
+  boton.addEventListener("click", function(){
+    var actual = raiz.getAttribute("data-theme");
+    var siguiente = actual === "dark" ? "light" : "dark";
+    raiz.setAttribute("data-theme", siguiente);
+    try { window.localStorage.setItem("ongs-ai-tema", siguiente); } catch (e) {}
+  });
+})();
+</script>
+{% block script_extra %}{% endblock %}
+</body>
+</html>

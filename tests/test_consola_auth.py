@@ -85,10 +85,10 @@ def test_clave_correcta_da_acceso():
     resp = cliente.post("/consola/login", data={"clave": CLAVE_TEST}, follow_redirects=False)
 
     assert resp.status_code == 303
-    assert resp.headers["location"] == "/consola/prospectos"
+    assert resp.headers["location"] == "/consola"
 
-    resp_prospectos = cliente.get("/consola/prospectos")
-    assert resp_prospectos.status_code == 200
+    resp_dashboard = cliente.get("/consola")
+    assert resp_dashboard.status_code == 200
 
 
 def test_clave_incorrecta_da_error_generico_sin_acceso():

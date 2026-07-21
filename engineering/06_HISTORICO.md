@@ -7,6 +7,20 @@
 
 ## Semana 2026-07-20/26
 
+- **PROMPT-020 — F-consola.1: consola del operador + prospectos + scoring** (Sonnet)
+  — **HECHO f870150, APROBADO (auditoría del arquitecto), 308 tests. F-consola.1
+  CERRADA.** `prospeccion/` (Prospecto + puerto + importador puro, verificado contra
+  el CSV real: 511 filas, 0 descartes); `servicios/afinidad.py` (70/30, cap 44,
+  mapa cerrado de palabras clave, importe como rango techo-teórico, señales aparte)
+  con TEST DE ANCLAJE de equivalencia a evaluar_elegibilidad — que además cazó una
+  divergencia real a mitad de vuelo (pendiente_de_dato no bloqueaba elegibilidad) y
+  la sesión la corrigió; duplicación por-requisito elegida sobre el refactor
+  (incompatibilidad estructural Entidad/Prospecto), documentada; rol operador con
+  separación verificada por inspección de rutas, clave HMAC en tiempo constante,
+  solo_loopback con 404 genérico (mejora sobre la spec); listar_convocatorias +
+  RepositorioProspectos en ambos backends con test de contrato. Decisiones del
+  arquitecto sobre sus preguntas: dato del maestro corregido (no special-case),
+  web/tamano aprobados, fórmula de afinidad temática auditada y aprobada.
 - **PROMPT-019 — ADR-006: consola del operador + candidatas + scoring** (Opus) —
   **HECHO 838373a, APROBADO (auditoría del arquitecto, 674 líneas leídas), 256 tests
   (sin código).** Rol operador separado POR CONSTRUCCIÓN (dependencias/sesión
