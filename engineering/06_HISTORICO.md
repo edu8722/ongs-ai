@@ -1,30 +1,23 @@
 # 06 HISTÓRICO — arqueología de ONGs-AI
 
+## Semana 2026-07-20/26
+
+- **PROMPT-010 — F4.1: persistencia de matches + propuesta automática y sobrevenida**
+  (Sonnet) — **HECHO 9f8c732, APROBADO (auditoría del arquitecto, 2026-07-21, desde
+  git), 155 tests. F4.1 CERRADA.** `servicios/propuestas.py` (detectar_y_proponer:
+  pre-puerta VERIFICADA+plazo abierto, upsert por pareja Entidad×Convocatoria,
+  detectada→propuesta con aviso — incluida elegibilidad sobrevenida —, terminales
+  respetados sin resucitar, regresión de elegibilidad sin retroceso de estado ni
+  re-aviso, contadores en ResumenPropuestas) + `servicios/notificacion.py` (Protocol
+  Notificador + NotificadorStub; notificación SIEMPRE degrada limpio). Ids/reloj
+  inyectados; sin cambio de contrato ni esquema, tal como exigía ADR-004. Nota: el
+  cierre se registró el día 21 porque la pizarra del disco fue pisada por el mount
+  con una copia del 18 (commit accidental 61d76a4) — recuperada desde 9f8c732;
+  incidente y regla nueva (git = verdad de la pizarra, un solo arquitecto activo)
+  fijados en el traspaso del 06.
+
 ## Semana 2026-07-13/19
 
-- **PROMPT-010 — F4.1: persistencia de matches + propuesta automática** (Sonnet) —
-  **HECHO 9f8c732, APROBADO (auditoría independiente del arquitecto, DESDE GIT), 155
-  tests. F4.1 CERRADA.** Implementa ADR-004 §5 sin tocar contrato ni esquema SQLite
-  (reusa `guardar_match`/`listar_matches_por_entidad` de F1 y la máquina de estados de
-  F3). Nuevo paquete `src/ongs_ai/servicios/`: `notificacion.py` (Protocol `Notificador`
-  + `NotificadorStub` que registra avisos, email real diferido a F4.2) y `propuestas.py`
-  (`detectar_y_proponer`). Algoritmo por entidad: pre-puerta (solo VERIFICADA con plazo
-  abierto; el resto se cuenta y se ignora), indexado en memoria de los matches de la
-  entidad, y por pareja: match activo → actualiza resultado y si estaba en `detectada`
-  y es elegible transiciona a `propuesta`+avisa (elegibilidad sobrevenida); ya en
-  `propuesta` que sigue elegible no re-avisa; regresión (elegible→no) no retrocede de
-  estado; sin activo pero con terminal (`descartada`/`presentada`) se respeta sin tocar;
-  sin match se crea `detectada` y si elegible se propone+avisa. Notificación siempre en
-  try/except (degrada limpio). `ResumenPropuestas` con 5 contadores documentados. 22
-  tests nuevos (`tests/test_propuestas.py`) parametrizados sobre memoria/sqlite cubren
-  cada bullet (elegible 1ª detección, no elegible sin aviso, pre-puerta, idempotencia,
-  sobrevenida, respeto a terminal, degradación del notificador, reloj/ids). Decisiones
-  del empleado aprobadas por el arquitecto: `ya_existentes_sin_cambio` agrupa los tres
-  casos "nada cambia" (propuesta que sigue elegible, regresión, terminal respetada);
-  `saltadas_pre_puerta` cuenta por pareja entidad×convocatoria (algoritmo anidado por
-  entidad). Auditoría desde `git show 9f8c732:...` (el mount seguía sirviendo versiones
-  antiguas de ficheros recién editados). El commit incluyó tal cual los cambios del
-  working tree de engineering/06_* y el nuevo ADR-004.
 - **PROMPT-009 — F2-fix: ámbito provincial (NUTS3) en el adapter BDNS** (Sonnet) —
   **HECHO 6a50af2, APROBADO (auditoría independiente del arquitecto, DESDE GIT), 133
   tests. F2-fix CERRADA.** Bug destapado por el smoke test del operador contra la API
