@@ -70,6 +70,21 @@ siguiente acción según este documento.
 
 ## ESTADO VIVO
 
+- **2026-07-21 — PROMPT-019 / ADR-006 CERRADO: APROBADO, HECHO 838373a.** Consola
+  del operador con separación por construcción, Prospecto fuera del contrato,
+  scoring determinista honesto (tres rechazos a la hipótesis del prototipo: sin
+  probabilidad inventada, sin capacidad-de-ejecución en el score, plazo aparte).
+  Pregunta bloqueante del mapeo de columnas RESUELTA por el arquitecto (autor del
+  maestro) + export listo: `investigacion/asociaciones_maestro.csv` (UTF-8, 511
+  filas, cabeceras Nombre/Web/Email/Teléfono/Ámbito/CCAA/Enfermedad-Colectivo/
+  Personas visibles (cargo)/Tamaño/Fuente(s)/Notas). Defaults §6 aceptados en nombre
+  del operador (clave por entorno, CSV, pesos 70/30, rango techo-teórico, señales
+  aparte, sin hosting) — corregibles. **SIGUIENTE: PROMPT-020 (F-consola.1) EN COLA.**
+- **2026-07-21 — 3er PISOTÓN DE PIZARRA (histórico), resuelto:** el clobber de la
+  sesión Opus alcanzó también a 06_HISTORICO.md (regresó al día 18) y el commit
+  838373a lo selló en git. RECONSTRUIDO ÍNTEGRO por el arquitecto (19 entradas,
+  PROMPT-001→019) desde sus registros de sesión y los diffs de git. Pendiente:
+  commit de docs del operador para sellar la reconstrucción.
 - **2026-07-21 — PROMPT-018 CERRADO: APROBADO, HECHO 7ce0fd7, 256 tests, pushed.
   LA VISIÓN CORRE CON DATOS REALES:** pasada real = 50 convocatorias BDNS nuevas,
   extracción IA con la suscripción del operador (freno de plan funcionando),
@@ -225,76 +240,47 @@ resumen impreso — verificación humana del pipeline completo con tu
 suscripción.
 ```
 
-#### PROMPT-019 — ADR-006: consola del operador + candidatas + scoring · MODELO: Opus · ORDEN: 1º (nada en paralelo) · SIN CÓDIGO DE PRODUCCIÓN
+#### PROMPT-020 — F-consola.1: consola del operador + prospectos + scoring · MODELO: Sonnet · ORDEN: 1º (nada en paralelo)
 
 ```
-POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda
-de implementación, elige la opción más conservadora/reversible y DOCUMENTA
-la decisión en el resumen final; ante ambigüedad de alcance, implementa lo
-literal del prompt y anota lo que dejaste fuera; jamás inventes datos ni
-mediciones (si necesitas un dato que no tienes, esa sí es pregunta
-legítima); las preguntas no bloqueantes van AGRUPADAS al final del
-trabajo, no en medio. Reglas de oro de CLAUDE.md por encima de todo — si
-el prompt y CLAUDE.md chocan, gana CLAUDE.md y me lo señalas. Antes de
-tocar un fichero grande, Grep al símbolo y lee el rango — nunca el
-fichero entero. La pizarra (engineering/06_*) la mantiene SOLO el
-arquitecto: no cierres items, no te declares APROBADO, no muevas nada al
-histórico — limítate a incluir en tu commit los cambios de
-engineering/06_* que ya estén en el working tree, tal cual estén.
+Ejecuta ÍNTEGRO el "PROMPT F-consola.1" tal como está escrito en
+engineering/ADR-006-consola-operador-y-scoring.md §7 (commit 838373a) —
+léelo de ese fichero del repo, que es inmutable, y aplícale estas
+RESPUESTAS DEL OPERADOR/ARQUITECTO a las preguntas §6 del mismo ADR:
 
-TAREA: escribir engineering/ADR-006-consola-operador-y-scoring.md. SOLO
-documentación. Lee antes: prototipos/ongs-ai-prototipo.html (REFERENCIA
-de diseño — es maqueta con datos sintéticos, no la app), CLAUDE.md,
-ADR-001/002/005, src/ongs_ai/dominio/elegibilidad.py,
-servicios/panel.py, web/ (esqueleto existente) y el maestro de
-prospección descrito en el 06 (investigacion/, fuera de git, 511
-candidatas con datos parciales).
+- §6.1 clave de operador: ONGS_AI_OPERADOR_CLAVE por entorno. CONFORME.
+- §6.2 mapeo del maestro (era el bloqueante — RESUELTO): fichero
+  investigacion/asociaciones_maestro.csv (CSV UTF-8 con cabecera, 511
+  filas de datos, FUERA de git — verifica con git check-ignore antes de
+  cualquier add). Columnas EXACTAS:
+  "Nombre" → nombre · "Web" → web · "Email" → email (puede venir vacío o
+  con varios separados por ';' → coge el primero) · "Teléfono" → telefono
+  · "Ámbito" → ambito (valores libres: nacional/autonomico/local/vacío —
+  normaliza con el criterio de ADR-002, sin mapeo → vacío) · "CCAA" →
+  region (texto libre, puede ser "(sin CCAA)" → trátalo como vacío) ·
+  "Enfermedad / Colectivo" → enfermedad_o_colectivo · "Personas visibles
+  (cargo)" → nota de contacto personal (⚠ dato personal: se guarda en el
+  Prospecto pero JAMÁS aparece en logs ni en fixtures) · "Tamaño" →
+  descriptivo libre · "Fuente(s)" y "Notas" → metadatos de procedencia.
+  Filas sin nombre se descartan con contador; nada se inventa.
+- §6.3 formato: CSV UTF-8 (el de arriba). Sin dependencia nueva.
+- §6.4 pesos del score: 70/30 con capado de no elegibles. CONFORME.
+- §6.5 importe: RANGO [suma mínimos, suma máximos] etiquetado techo
+  teórico. CONFORME.
+- §6.6 señales aparte (capacidad solo con datos económicos; plazo
+  siempre, como urgencia). CONFORME.
+- §6.7 hosting: NO se despliega; consola solo 127.0.0.1. CONFORME.
 
-El problema de producto: el OPERADOR (no las entidades) necesita la
-herramienta del "paso previo" — explorar candidatas y enseñarles a
-cuántas convocatorias podrían presentarse y por cuánto importe (el cruce
-del prototipo). Decisiones a tomar:
+Sobre la nota de reutilización de ADR-006 §2.6: intenta el refactor de
+las sub-evaluaciones de elegibilidad.py a cumple|incumple|pendiente SIN
+cambiar el comportamiento observable (mismos tests verdes); si resulta
+arriesgado, duplica con test de equivalencia, y documenta cuál elegiste.
 
-1. CONSOLA DEL OPERADOR — rol nuevo, distinto del tenant: rutas
-   /consola/* en módulos propios, con lecturas GLOBALES (todas las
-   entidades) SIN debilitar ni un milímetro las garantías del panel de
-   entidades (separación estricta de routers y dependencias: la
-   dependencia de operador JAMÁS se usa en rutas de tenant ni viceversa).
-   Auth v1 proporcional al riesgo: proceso local en el PC del operador →
-   default a evaluar: clave de operador por variable de entorno + bind
-   SOLO a 127.0.0.1 para las rutas de consola; documenta qué cambia
-   cuando haya hosting.
-2. CANDIDATAS/PROSPECTOS: cómo entran las 511 del maestro sin violar el
-   contrato congelado (un prospecto NO tiene datos económicos, NIF ni
-   fecha de constitución — campos obligatorios de Entidad). Default a
-   evaluar: entidad nueva `Prospecto` FUERA del contrato de dominio
-   (infraestructura de captación, como TokensAcceso), con importador
-   desde el xlsx/csv del maestro (fichero SIEMPRE fuera de git) y
-   conversión explícita Prospecto→Entidad al completar el alta. La
-   evaluación de elegibilidad sobre un prospecto usa SOLO los requisitos
-   evaluables con sus datos parciales (lo no evaluable se muestra como
-   "pendiente de dato", jamás inventado).
-3. SCORING DE AFINIDAD + IMPORTE POTENCIAL (hipótesis del prototipo →
-   producto): definición DETERMINISTA (sin LLM en el número): puntos por
-   requisitos duros cumplidos/evaluables y afinidad de actividades;
-   importe potencial = agregado de cuantías máximas de las convocatorias
-   elegibles (céntimos int; rangos, no promesas). El score ORDENA y
-   comunica, JAMÁS decide elegibilidad (el guardarraíl binario de F3
-   queda intacto). Explicable motivo a motivo como el prototipo. Dónde
-   vive: servicio de solo lectura, sin cambio del contrato congelado —
-   si concluyes que exige tocar contrato, ese es un hallazgo del ADR, no
-   una licencia para hacerlo.
-4. Superficies sin fugas: la consola muestra datos de prospección (⚠ dato
-   personal de contacto) — SOLO en localhost v1, nunca desplegada tal
-   cual; qué se redacta/oculta si algún día se hospeda.
-5. ALTERNATIVAS descartadas, CONSECUENCIAS (tests: anti-fuga sigue
-   OBLIGATORIO para tenants; la consola gana tests propios), FASES con
-   prompt completo SOLO de la primera (F-consola.1), y PREGUNTAS AL
-   OPERADOR con default, agrupadas.
-
-Ritual de cierre: commit ÚNICO (ADR + engineering/06_* del working tree
-tal cual), pytest VERDE con el nº REAL de tests, `git status` antes del
-add, `git push`.
+Recuerda el preámbulo de política de decisión del propio prompt del ADR
+(incluida la regla de pizarra) y su ritual de cierre completo (commit
+único con nº REAL de tests, git status antes del add — JAMÁS el CSV del
+maestro —, push). Incluye engineering/06_* del working tree tal cual
+(cierre de PROMPT-019 + reconstrucción del histórico por el arquitecto).
 ```
 
 - El prompt de F5 se redacta tras la demo del operador (su feedback alimenta la
@@ -307,7 +293,9 @@ add, `git push`.
   `investigacion/demo_real_guion.md`; perfil en `scripts/demo_entidad_real.py`
   (desechable, no commitear). ORDEN: cerrar PROMPT-018 → seguir el guion → feedback
   al arquitecto (alimenta la spec de F5 y la versión enseñable del guion).
-- Pegar PROMPT-019 (ADR-006, **Opus**) — COPIA la versión ACTUAL del 06.
+- **Commit de docs YA** (sella la reconstrucción del histórico):
+  `git add engineering/ && git commit -m "Pizarra: historico reconstruido + cierre ADR-006 (docs)" && git push`
+- Pegar PROMPT-020 (F-consola.1, Sonnet) — COPIA la versión ACTUAL del 06.
 - **LA DEMO REAL YA ES EJECUTABLE**: seguir `investigacion/demo_real_guion.md`
   (perfil ABAIMAR + pasada real + panel). Tu feedback alimenta la spec de F5.
 - Programar la ingesta periódica: Programador de tareas de Windows → diaria (p. ej.
