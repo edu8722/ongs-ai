@@ -8,6 +8,78 @@
 
 {% if mensaje_aviso %}<p class="mensaje">{{ mensaje_aviso }}</p>{% endif %}
 
+<section class="recurrentes">
+  <h2>Tus ayudas recurrentes</h2>
+
+  {% if recurrentes.aviso_ventana_proxima %}
+    {% for item in recurrentes.aviso_ventana_proxima %}
+      <p class="mensaje aviso-ventana">
+        Se acerca la ventana estimada de <strong>{{ item.esperada.titulo_representativo }}</strong>
+        (suele publicarse {{ item.ventana_texto }}) — aún no la hemos detectado.
+      </p>
+    {% endfor %}
+  {% endif %}
+
+  <h3>Historial</h3>
+  {% if recurrentes.historial %}
+    {% for item in recurrentes.historial %}
+      <div class="match">
+        <strong>{{ item.titulo }}</strong> ({{ item.anio }})<br>
+        {% if item.organo %}Órgano: {{ item.organo }}<br>{% endif %}
+        {% if item.importe_centimos %}Importe: {{ item.importe_centimos | euros }}{% endif %}
+      </div>
+    {% endfor %}
+  {% else %}
+    <p>Aún no hay historial capturado.</p>
+  {% endif %}
+
+  <h3>Esperadas</h3>
+  {% if recurrentes.esperadas_vivas %}
+    {% for item in recurrentes.esperadas_vivas %}
+      {% set esperada = item.esperada %}
+      <div class="match esperada">
+        <span class="badge">PENDIENTE DE PUBLICAR</span>
+        <strong>{{ esperada.titulo_representativo }}</strong><br>
+        {% if esperada.organo %}Órgano: {{ esperada.organo }}<br>{% endif %}
+        Ventana estimada: {{ item.ventana_texto }} de {{ esperada.anio_esperado }}<br>
+        Confianza: {{ esperada.confianza.value }}
+        {% if item.etiqueta %}<br><em>{{ item.etiqueta }}</em>{% endif %}
+        {% if item.es_nominativa %}
+          <br><em>Recibida en {{ esperada.anios_observados | last }} — adjudicación directa — no se solicita en concurrencia.</em>
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% else %}
+    <p>Nada esperado por aquí de momento.</p>
+  {% endif %}
+
+  {% if recurrentes.publicadas %}
+    <h3>Publicadas</h3>
+    {% for item in recurrentes.publicadas %}
+      {% set esperada = item.esperada %}
+      <div class="match publicada">
+        <strong>{{ esperada.titulo_representativo }}</strong> — ¡ya está abierta!<br>
+        {% if item.tiene_match_enlazado %}
+          <a href="/panel">Revisa la propuesta en tu panel</a>
+        {% elif item.convocatoria_titulo %}
+          {{ item.convocatoria_titulo }}
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  {% if recurrentes.no_aparecidas %}
+    <h3>No aparecidas</h3>
+    {% for item in recurrentes.no_aparecidas %}
+      {% set esperada = item.esperada %}
+      <div class="match no-aparecida">
+        <strong>{{ esperada.titulo_representativo }}</strong><br>
+        No ha aparecido en su ventana habitual — conviene revisarla manualmente.
+      </div>
+    {% endfor %}
+  {% endif %}
+</section>
+
 {% macro lista_matches(titulo, matches, mostrar_motivo=False, mostrar_acciones=False) %}
 <section class="cubo">
   <h2>{{ titulo }} ({{ matches|length }})</h2>

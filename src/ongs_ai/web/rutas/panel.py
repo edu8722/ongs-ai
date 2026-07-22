@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 
 from ongs_ai.dominio.entidades import Entidad
 from ongs_ai.servicios.panel import resumen_panel
+from ongs_ai.servicios.panel_recurrentes import resumen_recurrentes
 from ongs_ai.web.dependencias import entidad_actual, token_csrf
 
 router = APIRouter()
@@ -36,6 +37,7 @@ _plantillas.env.filters["euros"] = _euros
 def panel(request: Request, entidad: Entidad = Depends(entidad_actual), aviso: str | None = None):
     almacen = request.app.state.almacen
     resumen = resumen_panel(entidad.entidad_id, almacen)
+    recurrentes = resumen_recurrentes(entidad.entidad_id, almacen, request.app.state.reloj().date())
 
     cubos = (
         resumen.propuestas_pendientes,
@@ -57,6 +59,7 @@ def panel(request: Request, entidad: Entidad = Depends(entidad_actual), aviso: s
         {
             "entidad": entidad,
             "resumen": resumen,
+            "recurrentes": recurrentes,
             "convocatorias": convocatorias,
             "csrf_token": token_csrf(request),
             "mensaje_aviso": MENSAJE_AVISO_TRANSICION if aviso else None,

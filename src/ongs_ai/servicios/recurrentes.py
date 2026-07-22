@@ -22,12 +22,15 @@ from typing import Callable, Sequence
 from ongs_ai.adapters.ingesta.bdns_concesiones import FuenteConcesionesBDNS
 from ongs_ai.dominio.entidades import Convocatoria, Entidad
 from ongs_ai.proactivo.derivacion import (
+    congruencia_territorial,
     derivar_esperadas_de_entidad,
     fingerprint_desde_convocatoria,
     sumar_meses,
+    territorio_convocatoria,
+    territorio_serie_desde_historial,
     ultimo_dia_mes,
 )
-from ongs_ai.proactivo.modelo import ConvocatoriaEsperada, EstadoEsperada
+from ongs_ai.proactivo.modelo import ConvocatoriaEsperada, EstadoEsperada, HistorialConcesion
 from ongs_ai.proactivo.puertos import RepositorioConvocatoriasEsperadas, RepositorioHistorialConcesiones
 
 logger = logging.getLogger(__name__)
@@ -181,13 +184,29 @@ def capturar_y_derivar_entidad(
 def _enlazar_convocatorias_nuevas(
     esperadas_activas: Sequence[ConvocatoriaEsperada],
     convocatorias: Sequence[Convocatoria],
+    historial: Sequence[HistorialConcesion],
     *,
     reloj: Callable[[], datetime],
 ) -> list[ConvocatoriaEsperada]:
     """Al PRIMER match de serie (§3.6): compara el fingerprint de cada
     convocatoria recién procesada contra las esperadas `ESPERADA` activas de
-    la entidad. Nunca crea Match — solo transiciona la esperada."""
+    la entidad. Nunca crea Match — solo transiciona la esperada.
+
+    Corrección del arquitecto (auditoría de PROMPT-027, `derivacion.py` arriba
+    de `congruencia_territorial`): el fingerprint por sí solo puede colisionar
+    entre dos territorios distintos con el mismo título genérico. Antes de
+    enlazar se exige congruencia territorial entre la SERIE (su historial) y
+    la convocatoria candidata; si NO casan (ambos lados con territorio
+    conocido y distinto), NO se enlaza y la esperada sigue `ESPERADA`
+    vigilando — el miss se prefiere siempre al enlace falso."""
     por_fingerprint = {e.serie_fingerprint: e for e in esperadas_activas}
+    historial_por_serie: dict[str, list[HistorialConcesion]] = {}
+    for item in historial:
+        historial_por_serie.setdefault(item.serie_fingerprint, []).append(item)
+    territorio_por_serie = {
+        fingerprint: territorio_serie_desde_historial(items) for fingerprint, items in historial_por_serie.items()
+    }
+
     enlazadas: list[ConvocatoriaEsperada] = []
     ya_enlazadas: set[str] = set()
 
@@ -195,6 +214,10 @@ def _enlazar_convocatorias_nuevas(
         fingerprint = fingerprint_desde_convocatoria(convocatoria)
         esperada = por_fingerprint.get(fingerprint)
         if esperada is None or fingerprint in ya_enlazadas:
+            continue
+        if not congruencia_territorial(
+            territorio_por_serie.get(fingerprint), territorio_convocatoria(convocatoria)
+        ):
             continue
         enlazadas.append(
             dataclasses.replace(
@@ -253,8 +276,9 @@ def reevaluar_entidad(
     esperadas_activas = [
         e for e in repo_esperadas.listar_esperadas_por_entidad(entidad_id) if e.estado is EstadoEsperada.ESPERADA
     ]
+    historial = repo_historial.listar_historial_por_entidad(entidad_id)
 
-    enlazadas = _enlazar_convocatorias_nuevas(esperadas_activas, convocatorias_procesadas, reloj=reloj)
+    enlazadas = _enlazar_convocatorias_nuevas(esperadas_activas, convocatorias_procesadas, historial, reloj=reloj)
     contextos = []
     for enlazada in enlazadas:
         repo_esperadas.guardar_esperada(enlazada)

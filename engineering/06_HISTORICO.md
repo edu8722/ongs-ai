@@ -7,6 +7,21 @@
 
 ## Semana 2026-07-20/26
 
+- **PROMPT-027 — F-proactivo.1: implementación de ADR-007** (Sonnet) — **HECHO
+  a7041f3, APROBADO, 455 tests.** proactivo/ (modelo, puertos, derivación
+  determinista con tokens de año/edición en lectura conservadora — preserva
+  "0,7%" del IRPF), FuenteConcesionesBDNS (nifCif + fechas dd/mm/yyyy),
+  repos en memoria+SQLite con anti-fuga cross-tenant ampliado, servicio de
+  recurrentes (dedupe por cod_concesion, upsert por entidad+serie+año, enlace
+  al primer match SIN crear Match, NO_APARECIDA a +2 meses), enganche en cada
+  pasada con contadores, CLI derivar_recurrentes con --nif-prueba en memoria.
+  Verificación real: P0704500H → 76 concesiones/series; demo NIF ficticio →
+  0 con degradación limpia. Desviaciones auditadas: apertura_convocatoria
+  persistida (APROBADA); fingerprint nivel1+título sin nivel2 (necesaria para
+  series estatales — APROBADA con matiz: colisión entre territorios de título
+  idéntico consume la esperada al primer enlace → corrección de congruencia
+  territorial encolada en F-proactivo.2/PROMPT-028).
+
 - **PROMPT-026 — F-consola.3: filtros en todas las vistas + acciones web**
   (Sonnet) — **HECHO 7fb9d05, APROBADO, 389 tests.** Petición literal del
   operador. Filtros GET server-side en entidades (tipo/CCAA), cruce

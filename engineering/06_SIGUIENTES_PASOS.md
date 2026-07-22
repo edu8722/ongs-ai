@@ -70,6 +70,26 @@ siguiente acción según este documento.
 
 ## ESTADO VIVO
 
+- **2026-07-22 — PROMPT-027 / F-proactivo.1 CERRADO: APROBADO, HECHO a7041f3,
+  455 tests, pushed. EL CORAZÓN PROACTIVO EXISTE.** Auditado contra el repo:
+  proactivo/ completo (modelo/puertos/derivación determinista sin LLM),
+  FuenteConcesionesBDNS (nifCif+fechas), repos en ambos almacenes con anti-fuga
+  ampliado, servicio de recurrentes con enlace que JAMÁS crea Match, enganche
+  en cada pasada, CLI con --nif-prueba. Verificado en vivo: NIF público P0704500H
+  → 76 concesiones y series derivadas en memoria; entidad demo (NIF ficticio) →
+  degradación limpia con 0. DOS desviaciones de la sesión, auditadas: (1)
+  apertura_convocatoria persistida en HistorialConcesion (evita red repetida en
+  re-derivación) — APROBADA, aditiva y documentada; (2) fingerprint sin nivel2
+  además de sin nivel3 (el contrato no conserva el órgano en bruto; exigirlo
+  dejaría las series ESTATALES en miss permanente) — APROBADA con MATIZ del
+  arquitecto: el razonamiento del riesgo se queda corto — dos territorios con
+  título genérico idéntico colisionan y el enlace al PRIMER match CONSUME la
+  esperada → la edición verdadera posterior queda sin vigilante (miss
+  disfrazado). CORRECCIÓN encolada como bloque obligatorio de F-proactivo.2:
+  congruencia territorial determinista en el enlace (nivel2 del historial vs
+  ámbito/región de la convocatoria; dato ausente → permite, conservador).
+  **SIGUIENTE: PROMPT-028 (F-proactivo.2) EN COLA — vista de panel del tenant +
+  congruencia territorial + retirada de demo-conv-*.**
 - **2026-07-22 — DEFAULTS §8 DEL ADR-007 ACEPTADOS EN BLOQUE POR EL OPERADOR
   ("defaults OK"):** historial 5 años · 1 edición basta (BAJA) · ventana
   próxima solo panel · NO_APARECIDA a +2 meses · nominativas sin "preséntate" ·
@@ -222,7 +242,7 @@ siguiente acción según este documento.
 
 ### ➤ PROMPTS PENDIENTES — todos aquí, listos para copiar (se vacían al cerrarse)
 
-#### PROMPT-027 — F-proactivo.1: historial por NIF + convocatorias esperadas (implementa ADR-007) · MODELO: Sonnet · ORDEN: 1º (nada en paralelo)
+#### PROMPT-028 — F-proactivo.2: panel del tenant con esperadas + congruencia territorial del enlace + retirada de datos demo · MODELO: Sonnet · ORDEN: 1º (nada en paralelo)
 
 ```
 POLÍTICA DE DECISIÓN (evita preguntar salvo bloqueo real): ante una duda,
@@ -234,96 +254,91 @@ un fichero grande, Grep al símbolo y lee el rango. La pizarra
 declares APROBADO — incluye en tu commit los cambios de engineering/06_*
 del working tree tal cual.
 
-TAREA: implementar engineering/ADR-007-recurrentes-esperadas.md (LÉELO
-ENTERO ANTES: es la spec; este prompt fija calibraciones y orden). Los
-defaults del §8 están ACEPTADOS por el operador: historial 5 años · 1
-edición basta (confianza BAJA etiquetada) · aviso de ventana próxima SOLO
-panel (aquí solo se materializa el dato; la vista es F-proactivo.2) ·
-NO_APARECIDA a los 2 meses de cerrar la ventana · nominativas
-accionable=False · re-derivación tras cada pasada de ingesta.
+Tres bloques. Contexto: ADR-007 implementado en PROMPT-027 (paquete
+proactivo/, servicios/recurrentes.py). Lee la calibración del fingerprint
+en proactivo/derivacion.py antes de tocar nada.
 
-A. `src/ongs_ai/proactivo/` (ADR-007 §3.1-§3.3): modelo.py
-   (HistorialConcesion, ConvocatoriaEsperada, EstadoEsperada, Confianza —
-   dataclasses frozen, dinero en céntimos int), puertos.py (2 repos
-   Protocol runtime_checkable; TODA lectura/escritura exige entidad_id),
-   derivacion.py (DETERMINISTA, sin LLM):
-A1. Fingerprint de serie — CALIBRACIÓN DEL ARQUITECTO (auditoría del ADR,
-   difiere del §3.5 en un punto): se construye con organo nivel1 + nivel2
-   + título normalizado sin tokens de año/edición; nivel3 (consejería/
-   dirección general) QUEDA FUERA del fingerprint porque se renombra entre
-   legislaturas (el histórico real de Aniridia lo evidencia) y produciría
-   misses evitables. nivel3 se conserva como dato informativo en el
-   modelo. Documenta esta decisión en derivacion.py citando ADR-007 y esta
-   calibración. Degradación intacta: si no agrupa → MISS, jamás esperada
-   falsa.
-A2. Ventana desde las APERTURAS de las ediciones previas (§3.5): el
-   servicio consulta el detalle de cada convocatoria histórica ya conocido
-   por bdns.py; si falta apertura → mes de fechaConcesion como proxy
-   MARCADO (baja confianza). Confianza ALTA/MEDIA/BAJA y ventana [min,max]
-   exactamente como §3.5. anio_esperado desde fecha_referencia INYECTADA.
-B. `adapters/ingesta/bdns_concesiones.py` (§3.4): FuenteConcesionesBDNS
-   sobre el TransporteHTTP existente; buscar_por_nif(nif, fecha_desde,
-   fecha_hasta) con nifCif + fechaDesde/fechaHasta (dd/mm/yyyy, VERIFICADO
-   en §2.3); paginación como FuenteBDNS; mapeo §3.2 con contadores de
-   descartados/ausentes; fallo de transporte degrada limpio. Fixtures
-   SINTÉTICAS con la forma real de §2.1 — JAMÁS el histórico real de
-   investigacion/ ni NIFs de asociaciones reales en tests.
-C. Persistencia: ambos almacenes ganan los 2 repos (CREATE TABLE IF NOT
-   EXISTS idempotente, datos_json como el resto); tests de contrato
-   parametrizados memoria+SQLite; test ANTI-FUGA cross-tenant AMPLIADO a
-   historial y esperadas (entidad A jamás lee de B); anti-hardcoding
-   vigila también src/ongs_ai/proactivo/.
-D. `servicios/recurrentes.py` (§3.4/§3.6/§3.8): orquesta captura →
-   persistencia historial (dedupe por cod_concesion) → derivación →
-   upsert de esperadas por (entidad_id, serie_fingerprint, anio_esperado);
-   enlace tras ingesta: compara lo recién ingerido contra las esperadas
-   ESPERADA por fingerprint → PUBLICADA_ENLAZADA con
-   convocatoria_id_enlazada (y JAMÁS crea Match — el flujo normal de
-   ADR-004 decide); NO_APARECIDA cuando fecha_referencia > fin de ventana
-   + 2 meses. El aviso de propuesta existente, cuando la convocatoria del
-   Match esté enlazada a una esperada de esa entidad, gana UNA línea de
-   contexto ("la ayuda que recibiste en <año> ya está abierta") — no se
-   crea canal nuevo ni aviso duplicado; NotificadorStub verifica que la
-   ventana estimada NO dispara email.
-E. Enganche a la pasada (default 6 aceptado): al final de la orquestación
-   de servicios/pasada_ingesta.py, para cada entidad captada se ejecuta
-   enlace + re-derivación con degradación limpia y contadores en el
-   resumen (esperadas_enlazadas, esperadas_no_aparecidas). El botón del
-   dashboard hereda esto sin tocarlo.
-F. `scripts/derivar_recurrentes.py`: CLI fino sobre orquestación testeada
-   (patrón preparar_demo): por defecto recorre las entidades captadas con
-   NIF real (consulta nifCif últimos 5 años, puebla, deriva, imprime
-   resumen: capturadas/descartadas/series/esperadas por confianza).
-   Flag --nif-prueba <NIF>: consulta y deriva EN MEMORIA sin persistir
-   (smoke sin contaminar la base). NO corre en CI.
+A. CONGRUENCIA TERRITORIAL EN EL ENLACE (corrección del arquitecto a la
+   auditoría del 027 — cierra un miss disfrazado): con el fingerprint de
+   nivel1+título, dos territorios distintos con título genérico idéntico
+   (p. ej. dos diputaciones con "Convocatoria de subvenciones para
+   entidades sin ánimo de lucro") colisionan, y como el enlace consume la
+   esperada al PRIMER match, la edición verdadera posterior queda sin
+   vigilante. Arreglo determinista en _enlazar_convocatorias_nuevas (o
+   helper propio en derivacion.py, donde encaje mejor):
+A1. Antes de enlazar, comprueba congruencia territorial entre la SERIE
+   (los HistorialConcesion que la sustentan: organo_nivel2, ya
+   normalizable) y la Convocatoria candidata (ambito_geografico +
+   region/provincia): si AMBOS lados conocen su territorio y NO casan
+   (p. ej. serie con nivel2="ILLES BALEARS" vs convocatoria
+   region="GRANADA"; o serie AUTONOMICA con nivel2 conocido vs
+   convocatoria NACIONAL) → NO se enlaza (la esperada sigue viva
+   vigilando). Si CUALQUIER lado no conoce su territorio → se permite el
+   enlace (conservador con el dato ausente, como todo el módulo). Usa
+   normalizar_texto_comparacion; nada de heurísticas difusas.
+A2. Tests: colisión de dos territorios con mismo título NO enlaza y la
+   esperada sigue ESPERADA; la serie estatal (nivel2 ausente en la
+   convocatoria nacional) SIGUE enlazando (el caso insignia del ADR no se
+   rompe); dato territorial ausente en el historial → enlaza.
+   La firma del servicio necesita acceso a los historiales de la serie —
+   ajusta lo mínimo, sin tocar el contrato congelado.
 
-G. `python -m pytest -q` VERDE con el nº REAL de tests. NO toques
-   contrato congelado, máquina de estados de Match, guardarraíl,
-   scoring ni vistas web (la vista del panel es F-proactivo.2).
+B. PANEL DEL TENANT — "Tus ayudas recurrentes" (la petición original del
+   operador, ahora visible): nueva sección/vista en el panel (ADR-005;
+   plantillas del tenant, autoescape, entidad_actual() como única fuente
+   de tenant — JAMÁS entidad_id del cliente):
+B1. HISTORIAL (hechos): lista de concesiones pasadas de la entidad — año,
+   título, órgano legible, importe (filtro euros existente); vacía → texto
+   neutro ("aún no hay historial capturado").
+B2. ESPERADAS: las ESPERADA con badge "PENDIENTE DE PUBLICAR", ventana en
+   lenguaje natural ("suele publicarse en mayo–junio" / "en torno a mayo";
+   meses en castellano), año esperado, confianza visible, y etiquetas
+   honestas del ADR: "una sola edición previa — sin patrón confirmado",
+   "irregular", y las nominativas con "adjudicación directa — no se
+   solicita en concurrencia" SIN botón ni sugerencia de presentarse.
+B3. PUBLICADA_ENLAZADA → "¡ya está abierta!" con enlace a la propuesta del
+   panel si existe Match propuesto, o a la convocatoria si no.
+   NO_APARECIDA → "no ha aparecido en su ventana habitual — conviene
+   revisarla manualmente". Aviso de VENTANA PRÓXIMA (§3.8, solo panel):
+   banner cuando la fecha actual (reloj del app.state) cae dentro de la
+   ventana de una ESPERADA accionable con confianza MEDIA/ALTA — una sola
+   vez por ventana = es un render condicional, sin persistencia nueva.
+B4. Tests HTTP del panel: historial+esperadas de la ENTIDAD de la sesión y
+   solo de ella (anti-fuga a nivel vista); render de cada estado/etiqueta;
+   vacíos sin romper; el aviso de ventana aparece solo en ventana y solo
+   MEDIA/ALTA accionable.
 
-Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje,
-git status antes del add (JAMÁS investigacion/ ni NIFs reales en
-fixtures), git push. Tras el commit, DOS verificaciones reales pegadas:
-(1) `python scripts/derivar_recurrentes.py --nif-prueba P0704500H`
-(NIF público del ayuntamiento usado en la verificación del ADR-007 §2.3,
-76 concesiones) — smoke del pipeline completo en memoria; (2) la pasada
-sobre la entidad demo (NIF ficticio) — debe degradar limpio con 0
-concesiones sin romper nada.
+C. RETIRADA DE LOS DATOS DEMO FICTICIOS (bandeja del operador, pendiente
+   desde PROMPT-023): scripts/preparar_demo.py, al ejecutarse, marca las
+   convocatorias demo-conv-1/2/3 (si existen en la base) como
+   DESCARTADA_POR_DOMINIO con motivo "dato ficticio de demo retirado" —
+   NO se borran filas (asientos y dedupe intactos; las vistas ya ocultan
+   descartadas). Sus Matches quedan como están (histórico inmutable).
+   Test de la orquestación. La entidad demo ABAIMAR se mantiene.
+
+D. python -m pytest -q VERDE con el nº REAL de tests. NO toques contrato
+   congelado, máquina de Match, guardarraíl, scoring ni consola del
+   operador.
+
+Ritual de cierre: commit ÚNICO con el nº REAL de tests en el mensaje, git
+status antes del add (JAMÁS investigacion/), git push. Tras el commit:
+ejecuta preparar_demo + servidor real y pega qué muestra la sección "Tus
+ayudas recurrentes" del panel de la entidad demo (debe renderizar limpia y
+vacía con su NIF ficticio) y el resultado del test de colisión del bloque A.
 ```
-
 
 ### Bandeja del OPERADOR
 
-- **Pegar PROMPT-027 (F-proactivo.1, Sonnet) — COPIA la versión ACTUAL del
-  06.** Al cerrar y auditar: F-proactivo.2 (la vista del panel con historial +
-  esperadas "pendiente de publicar" y su ventana estimada — lo que pediste).
+- **Pegar PROMPT-028 (F-proactivo.2, Sonnet) — COPIA la versión ACTUAL del
+  06.** Al cerrar: el panel de la entidad mostrará historial + "pendiente de
+  publicar" con su ventana — tu petición original, visible.
 - Commit de docs cuando quieras:
   `git add engineering/ && git commit -m "Pizarra (docs)" && git push`
 - Decisión pendiente (sin prisa): teléfono público de ABAIMAR en
   scripts/preparar_demo.py. ¿Lo dejamos o placeholder?
-- En espera: retirar demo-conv-1/2/3, entidad piloto (para el historial real
-  necesitaremos su NIF verdadero al captarla), SMTP real, programación diaria,
-  censo FEDER.
+- En espera: entidad piloto (su NIF real activará el historial de verdad —
+  te redacto el mensaje de contacto cuando quieras), SMTP real, programación
+  diaria, censo FEDER.
 
 ### Backlog
 

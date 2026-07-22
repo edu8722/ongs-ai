@@ -12,7 +12,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from ejecutar_ingesta import ResumenPasada  # noqa: E402
-from preparar_demo import ENTIDAD_DEMO_ID, preparar_demo  # noqa: E402
+from preparar_demo import (  # noqa: E402
+    ENTIDAD_DEMO_ID,
+    IDS_CONVOCATORIAS_DEMO_FICTICIAS,
+    preparar_demo,
+)
 
 from ongs_ai.adapters.persistencia.memoria import AlmacenMemoria  # noqa: E402
 from ongs_ai.dominio.entidades import (  # noqa: E402
@@ -225,3 +229,58 @@ def test_con_csv_importa_prospectos_una_sola_vez():
     assert resumen2.prospectos_importados == 0
     assert "ya había" in resumen2.prospectos_aviso.lower()
     assert len(almacen.listar_prospectos()) == 1
+
+
+# --- Retirada de convocatorias demo ficticias (bandeja del operador,
+#     pendiente desde PROMPT-023) --------------------------------------------
+
+
+def test_retira_convocatorias_demo_ficticias_si_existen_en_la_base():
+    almacen = AlmacenMemoria()
+    for cid in IDS_CONVOCATORIAS_DEMO_FICTICIAS:
+        almacen.guardar_convocatoria(_convocatoria(cid, EstadoIngesta.VERIFICADA))
+    otra_real = _convocatoria("conv-real-1", EstadoIngesta.VERIFICADA)
+    almacen.guardar_convocatoria(otra_real)
+
+    resumen = preparar_demo(
+        almacen, email_operador="a@example.org", reloj=_reloj,
+        generador_token=_contador_tokens(), base_url="http://localhost:8001",
+    )
+
+    assert resumen.convocatorias_demo_retiradas == len(IDS_CONVOCATORIAS_DEMO_FICTICIAS)
+    for cid in IDS_CONVOCATORIAS_DEMO_FICTICIAS:
+        assert almacen.obtener_convocatoria(cid).estado_ingesta is EstadoIngesta.DESCARTADA_POR_DOMINIO
+    # una convocatoria real cualquiera no se toca.
+    assert almacen.obtener_convocatoria("conv-real-1").estado_ingesta is EstadoIngesta.VERIFICADA
+
+
+def test_retirada_de_demo_ficticias_no_borra_filas_ni_falla_si_no_existen():
+    almacen = AlmacenMemoria()
+    # ninguna demo-conv-* sembrada — no debe lanzar.
+    resumen = preparar_demo(
+        almacen, email_operador="a@example.org", reloj=_reloj,
+        generador_token=_contador_tokens(), base_url="http://localhost:8001",
+    )
+    assert resumen.convocatorias_demo_retiradas == 0
+    for cid in IDS_CONVOCATORIAS_DEMO_FICTICIAS:
+        assert almacen.obtener_convocatoria(cid) is None
+
+
+def test_retirada_de_demo_ficticias_es_idempotente():
+    almacen = AlmacenMemoria()
+    almacen.guardar_convocatoria(_convocatoria(IDS_CONVOCATORIAS_DEMO_FICTICIAS[0], EstadoIngesta.VERIFICADA))
+
+    preparar_demo(
+        almacen, email_operador="a@example.org", reloj=_reloj,
+        generador_token=_contador_tokens(), base_url="http://localhost:8001",
+    )
+    resumen_2 = preparar_demo(
+        almacen, email_operador="a@example.org", reloj=_reloj,
+        generador_token=_contador_tokens(), base_url="http://localhost:8001",
+    )
+
+    assert resumen_2.convocatorias_demo_retiradas == 0
+    assert (
+        almacen.obtener_convocatoria(IDS_CONVOCATORIAS_DEMO_FICTICIAS[0]).estado_ingesta
+        is EstadoIngesta.DESCARTADA_POR_DOMINIO
+    )

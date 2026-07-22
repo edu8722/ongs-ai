@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -308,6 +309,123 @@ def test_reevaluar_entidad_marca_no_aparecida_tras_ventana_mas_margen():
 
     actualizada = almacen.obtener_esperada(entidad.entidad_id, esperada.serie_fingerprint, esperada.anio_esperado)
     assert actualizada.estado is EstadoEsperada.NO_APARECIDA
+
+
+# --- Congruencia territorial en el enlace (corrección A1) ------------------
+
+
+def _historial_serie_autonomica(
+    *, entidad_id: str, cod_concesion: str, organo_nivel2: str, titulo: str
+) -> "HistorialConcesion":
+    from ongs_ai.proactivo.derivacion import construir_fingerprint_serie
+    from ongs_ai.proactivo.modelo import HistorialConcesion
+
+    return HistorialConcesion(
+        historial_id=f"hist-{cod_concesion}",
+        entidad_id=entidad_id,
+        cod_concesion=cod_concesion,
+        nif_beneficiario="G00000001",
+        fecha_concesion=date(2024, 5, 15),
+        importe_centimos=100_000,
+        cod_bdns_convocatoria=f"conv-{cod_concesion}",
+        titulo_convocatoria=titulo,
+        organo_nivel1="AUTONOMICA",
+        organo_nivel2=organo_nivel2,
+        organo_nivel3=None,
+        es_concesion_directa=False,
+        serie_fingerprint=construir_fingerprint_serie(organo_nivel1="AUTONOMICA", titulo=titulo),
+        apertura_convocatoria=date(2024, 5, 15),
+        capturado_en=AHORA,
+    )
+
+
+def _convocatoria_autonomica_generica(*, convocatoria_id: str, region: str | None, titulo: str) -> Convocatoria:
+    return Convocatoria(
+        convocatoria_id=convocatoria_id,
+        fuente=Fuente(portal="BDNS", url_origen=f"https://x/{convocatoria_id}", tipo=TipoFuente.PUBLICA_AUTONOMICA),
+        objeto=titulo,
+        beneficiarios_elegibles="Asociaciones",
+        requisitos_elegibilidad=RequisitosElegibilidad(),
+        ambito_geografico=AmbitoTerritorial.AUTONOMICO,
+        plazos=Plazos(fecha_apertura=date(2026, 5, 15), fecha_cierre=date(2026, 6, 15)),
+        cuantias=Cuantias(),
+        estado_ingesta=EstadoIngesta.VERIFICADA,
+        creado_en=AHORA,
+        actualizado_en=AHORA,
+        region=region,
+    )
+
+
+_TITULO_GENERICO = "Convocatoria de subvenciones para entidades sin animo de lucro"
+
+
+def test_colision_de_territorios_con_titulo_generico_no_enlaza_y_esperada_sigue_esperada():
+    """Corrección del arquitecto: dos territorios distintos con el mismo
+    título genérico colisionan en el fingerprint (nivel2 fuera de él). La
+    entidad recibió históricamente de Illes Balears; una convocatoria de
+    Granada con el mismo título genérico NO debe consumir esa esperada."""
+    almacen = AlmacenMemoria()
+    entidad = _entidad()
+    historial = _historial_serie_autonomica(
+        entidad_id=entidad.entidad_id, cod_concesion="c1",
+        organo_nivel2="ILLES BALEARS", titulo=_TITULO_GENERICO,
+    )
+    fuente = _FuenteUnicaStub([historial])
+    capturar_y_derivar_entidad(
+        entidad, fuente, almacen, almacen, date(2025, 1, 1),
+        generador_id=_generador_id("esp"), reloj=lambda: AHORA,
+    )
+    esperada_antes = almacen.listar_esperadas_por_entidad(entidad.entidad_id)[0]
+    assert esperada_antes.estado is EstadoEsperada.ESPERADA
+
+    convocatoria_granada = _convocatoria_autonomica_generica(
+        convocatoria_id="bdns-granada-2026", region="Granada", titulo=_TITULO_GENERICO,
+    )
+    resumen = reevaluar_entidad(
+        entidad.entidad_id, [convocatoria_granada], almacen, almacen, date(2025, 6, 1),
+        generador_id=_generador_id("esp2"), reloj=lambda: AHORA,
+    )
+
+    assert resumen.esperadas_enlazadas == 0
+    assert resumen.contextos_enlace == ()
+    esperada_despues = almacen.obtener_esperada(
+        entidad.entidad_id, esperada_antes.serie_fingerprint, esperada_antes.anio_esperado
+    )
+    assert esperada_despues.estado is EstadoEsperada.ESPERADA
+    assert esperada_despues.convocatoria_id_enlazada is None
+
+
+def test_territorio_ausente_en_el_historial_permite_enlazar():
+    """Serie AUTONOMICA cuyo historial NO trae `organo_nivel2` (dato
+    ausente) -> territorio desconocido en ese lado -> se permite el enlace
+    (conservador con el dato ausente, no con el conocido)."""
+    almacen = AlmacenMemoria()
+    entidad = _entidad()
+    historial = _historial_serie_autonomica(
+        entidad_id=entidad.entidad_id, cod_concesion="c1",
+        organo_nivel2="", titulo=_TITULO_GENERICO,
+    )
+    historial = dataclasses.replace(historial, organo_nivel2=None)
+    fuente = _FuenteUnicaStub([historial])
+    capturar_y_derivar_entidad(
+        entidad, fuente, almacen, almacen, date(2025, 1, 1),
+        generador_id=_generador_id("esp"), reloj=lambda: AHORA,
+    )
+    esperada_antes = almacen.listar_esperadas_por_entidad(entidad.entidad_id)[0]
+
+    convocatoria_granada = _convocatoria_autonomica_generica(
+        convocatoria_id="bdns-granada-2026", region="Granada", titulo=_TITULO_GENERICO,
+    )
+    resumen = reevaluar_entidad(
+        entidad.entidad_id, [convocatoria_granada], almacen, almacen, date(2025, 6, 1),
+        generador_id=_generador_id("esp2"), reloj=lambda: AHORA,
+    )
+
+    assert resumen.esperadas_enlazadas == 1
+    esperada_despues = almacen.obtener_esperada(
+        entidad.entidad_id, esperada_antes.serie_fingerprint, esperada_antes.anio_esperado
+    )
+    assert esperada_despues.estado is EstadoEsperada.PUBLICADA_ENLAZADA
 
 
 def test_reevaluar_entidad_no_resucita_esperada_terminal_en_re_derivacion():

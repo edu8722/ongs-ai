@@ -5,10 +5,13 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 
 from ongs_ai.proactivo.derivacion import (
+    congruencia_territorial,
     construir_fingerprint_serie,
     derivar_esperadas_de_entidad,
     fingerprint_desde_convocatoria,
     sumar_meses,
+    territorio_convocatoria,
+    territorio_serie_desde_historial,
     ultimo_dia_mes,
 )
 from ongs_ai.proactivo.modelo import Confianza, EstadoEsperada, HistorialConcesion
@@ -293,14 +296,20 @@ def test_anio_esperado_nunca_usa_reloj_del_sistema_es_puro_de_fecha_referencia()
 # --- Fingerprint de enlace desde una Convocatoria ya ingerida ---------------
 
 
-def _convocatoria(*, tipo: TipoFuente, region: str | None, objeto: str) -> Convocatoria:
+def _convocatoria(
+    *,
+    tipo: TipoFuente,
+    region: str | None,
+    objeto: str,
+    ambito: AmbitoTerritorial = AmbitoTerritorial.NACIONAL,
+) -> Convocatoria:
     return Convocatoria(
         convocatoria_id="bdns-999",
         fuente=Fuente(portal="BDNS", url_origen="https://x", tipo=tipo),
         objeto=objeto,
         beneficiarios_elegibles="Asociaciones",
         requisitos_elegibilidad=RequisitosElegibilidad(),
-        ambito_geografico=AmbitoTerritorial.NACIONAL,
+        ambito_geografico=ambito,
         plazos=Plazos(fecha_cierre=date(2026, 6, 1)),
         cuantias=Cuantias(),
         estado_ingesta=EstadoIngesta.VERIFICADA,
@@ -321,6 +330,77 @@ def test_fingerprint_desde_convocatoria_coincide_con_fingerprint_de_historial_na
     )
 
     assert fingerprint_desde_convocatoria(convocatoria) == fp_historial
+
+
+# --- Congruencia territorial en el enlace (corrección A1) -------------------
+
+
+def _historial_territorial(
+    *, organo_nivel1: str, organo_nivel2: str | None, cod_concesion: str = "c1"
+) -> HistorialConcesion:
+    return HistorialConcesion(
+        historial_id=f"hist-{cod_concesion}",
+        entidad_id=ENTIDAD_ID,
+        cod_concesion=cod_concesion,
+        nif_beneficiario="G00000001",
+        fecha_concesion=date(2024, 5, 1),
+        importe_centimos=100_000,
+        cod_bdns_convocatoria=f"conv-{cod_concesion}",
+        titulo_convocatoria="Convocatoria de subvenciones para entidades sin animo de lucro",
+        organo_nivel1=organo_nivel1,
+        organo_nivel2=organo_nivel2,
+        organo_nivel3=None,
+        es_concesion_directa=False,
+        serie_fingerprint="irrelevante-en-este-test",
+        apertura_convocatoria=date(2024, 5, 1),
+        capturado_en=AHORA,
+    )
+
+
+def test_territorio_serie_conocido_solo_para_autonomica_con_nivel2():
+    serie = [_historial_territorial(organo_nivel1="AUTONOMICA", organo_nivel2="ILLES BALEARS")]
+    assert territorio_serie_desde_historial(serie) == "illes balears"
+
+
+def test_territorio_serie_desconocido_para_estado_aunque_nivel2_tenga_valor():
+    """nivel2 en ESTADO es un ministerio, no una región (bdns.py) — nunca
+    territorio comparable, ni siquiera con valor no vacío."""
+    serie = [_historial_territorial(organo_nivel1="ESTADO", organo_nivel2="MINISTERIO FICTICIO")]
+    assert territorio_serie_desde_historial(serie) is None
+
+
+def test_territorio_serie_desconocido_para_local():
+    serie = [_historial_territorial(organo_nivel1="LOCAL", organo_nivel2="VILAFICTICIA")]
+    assert territorio_serie_desde_historial(serie) is None
+
+
+def test_territorio_serie_desconocido_si_nivel2_ausente():
+    serie = [_historial_territorial(organo_nivel1="AUTONOMICA", organo_nivel2=None)]
+    assert territorio_serie_desde_historial(serie) is None
+
+
+def test_territorio_convocatoria_nacional_es_territorio_conocido():
+    conv = _convocatoria(tipo=TipoFuente.PUBLICA_NACIONAL, region=None, objeto="x")
+    assert territorio_convocatoria(conv) == "nacional"
+
+
+def test_territorio_convocatoria_autonomica_usa_region():
+    conv = _convocatoria(
+        tipo=TipoFuente.PUBLICA_AUTONOMICA, region="Granada", objeto="x",
+        ambito=AmbitoTerritorial.AUTONOMICO,
+    )
+    assert territorio_convocatoria(conv) == "granada"
+
+
+def test_congruencia_territorial_permite_si_cualquier_lado_desconocido():
+    assert congruencia_territorial(None, "granada") is True
+    assert congruencia_territorial("illes balears", None) is True
+    assert congruencia_territorial(None, None) is True
+
+
+def test_congruencia_territorial_bloquea_solo_cuando_ambos_conocidos_y_distintos():
+    assert congruencia_territorial("illes balears", "granada") is False
+    assert congruencia_territorial("illes balears", "illes balears") is True
 
 
 # --- Helpers de fecha --------------------------------------------------------

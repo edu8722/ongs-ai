@@ -50,7 +50,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Callable, Mapping, Sequence
 
-from ongs_ai.dominio.entidades import Convocatoria, TipoFuente, normalizar_texto_comparacion
+from ongs_ai.dominio.entidades import AmbitoTerritorial, Convocatoria, TipoFuente, normalizar_texto_comparacion
 from ongs_ai.proactivo.modelo import Confianza, ConvocatoriaEsperada, EstadoEsperada, HistorialConcesion
 
 # --- Tokens de año/edición (ver docstring del módulo) ---------------------
@@ -102,6 +102,73 @@ def fingerprint_desde_convocatoria(convocatoria: Convocatoria) -> str:
     fórmula que `construir_fingerprint_serie` (ver docstring del módulo)."""
     nivel1_proxy = _NIVEL1_PROXY_DESDE_TIPO_FUENTE.get(convocatoria.fuente.tipo)
     return construir_fingerprint_serie(organo_nivel1=nivel1_proxy, titulo=convocatoria.objeto)
+
+
+# --- Congruencia territorial en el enlace (corrección del arquitecto tras la
+#     auditoría de PROMPT-027 — cierra un miss disfrazado) ------------------
+#
+# El fingerprint de enlace (arriba) usa SOLO nivel1+título — nivel2/nivel3
+# quedan fuera a propósito (ver docstring del módulo). Eso significa que dos
+# series de la MISMA entidad con el mismo nivel1 y un título genérico
+# idéntico ("Convocatoria de subvenciones para entidades sin ánimo de
+# lucro") COLISIONAN en el mismo fingerprint aunque sean de territorios
+# distintos (p. ej. dos comunidades autónomas). Como el enlace consume la
+# esperada al PRIMER match (§3.6), una convocatoria de un territorio ajeno
+# la enlazaría igual — dejando la edición verdadera, cuando por fin
+# aparezca, SIN esperada viva que la enlace: un miss disfrazado de acierto.
+#
+# Arreglo: antes de aceptar un enlace por fingerprint, se exige congruencia
+# territorial ENTRE el territorio de la serie (derivado de su historial) y
+# el de la convocatoria candidata — pero SOLO cuando `organo_nivel2` es
+# geográficamente fiable. `adapters/ingesta/bdns.py::_aplicar_tope_por_organo`
+# ya documenta que eso ocurre ÚNICAMENTE cuando `nivel1 == "AUTONOMICA"`
+# (ahí `region` cae a `nivel2` si `regiones` no dio nombre): para "ESTADO"
+# `nivel2` es un ministerio, para "LOCAL" es el ente local — ninguno de los
+# dos es territorio comparable, y tratarlos como tal rompería el caso
+# insignia del ADR (la serie estatal del IRPF, cuyo `nivel2` es un
+# ministerio, no una región). Fuera de AUTONOMICA el territorio de la serie
+# se considera SIEMPRE desconocido -> conservador, permite el enlace.
+
+
+def territorio_serie_desde_historial(historial_serie: Sequence[HistorialConcesion]) -> str | None:
+    """Territorio conocido de una serie (ver nota arriba): normalizado de
+    `organo_nivel2` cuando TODAS las ediciones que sustentan la serie son
+    `organo_nivel1 == "AUTONOMICA"` (nivel2 geográfico, único caso fiable) y
+    coinciden en el mismo valor. Cualquier otra situación -> `None`
+    (desconocido, conservador: permite el enlace, nunca lo bloquea por un
+    dato que no se conoce con certeza)."""
+    valores = {
+        normalizar_texto_comparacion(h.organo_nivel2)
+        for h in historial_serie
+        if h.organo_nivel1 == "AUTONOMICA" and h.organo_nivel2
+    }
+    if len(valores) == 1 and all(h.organo_nivel1 == "AUTONOMICA" for h in historial_serie):
+        return next(iter(valores))
+    return None
+
+
+_TERRITORIO_NACIONAL = "nacional"
+
+
+def territorio_convocatoria(convocatoria: Convocatoria) -> str | None:
+    """Territorio conocido de una `Convocatoria` candidata: NACIONAL es en sí
+    mismo un territorio conocido (no hay un territorio más amplio posible);
+    AUTONOMICO/PROVINCIAL/LOCAL solo si `region`/`provincia` trae nombre —
+    ausente -> `None` (desconocido, conservador)."""
+    if convocatoria.ambito_geografico is AmbitoTerritorial.NACIONAL:
+        return _TERRITORIO_NACIONAL
+    nombre = convocatoria.region or convocatoria.provincia
+    return normalizar_texto_comparacion(nombre) if nombre else None
+
+
+def congruencia_territorial(territorio_serie: str | None, territorio_convocatoria_candidata: str | None) -> bool:
+    """`True` = SE PERMITE el enlace. Si cualquiera de los dos lados
+    desconoce su territorio, se permite (conservador con el dato ausente,
+    ADR-007 §1); si ambos lo conocen, deben coincidir tras
+    `normalizar_texto_comparacion`."""
+    if territorio_serie is None or territorio_convocatoria_candidata is None:
+        return True
+    return territorio_serie == territorio_convocatoria_candidata
 
 
 # --- Fechas: aritmética de meses sin dependencias nuevas -------------------

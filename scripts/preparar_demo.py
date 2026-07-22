@@ -5,9 +5,12 @@ Deja TODO listo para abrir el navegador: (1) opcionalmente ejecuta una pasada
 corta de ingesta si faltan convocatorias VERIFICADAS y hay red, (2)
 siembra/actualiza la entidad demo (perfil ABAIMAR con supuestos marcados,
 email del operador), (3) importa los prospectos del CSV maestro si existe y
-aún no hay ninguno, (4) genera un enlace mágico y lo imprime junto con la URL
-de la consola, la variable de entorno de clave de operador y el comando
-uvicorn exacto.
+aún no hay ninguno, (4) retira las convocatorias ficticias de demo
+(`demo-conv-1/2/3`, si existen en la base) marcándolas `DESCARTADA_POR_DOMINIO`
+— pendiente desde PROMPT-023, nunca se borran filas (asientos/dedupe
+intactos, los Matches que las referencien quedan como están), (5) genera un
+enlace mágico y lo imprime junto con la URL de la consola, la variable de
+entorno de clave de operador y el comando uvicorn exacto.
 
 `preparar_demo()` es la ORQUESTACIÓN, testeada con todo inyectado/stub (sin
 red, sin disco) — ver `tests/test_preparar_demo.py`. `main()` es el
@@ -21,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import dataclasses
 import hashlib
 import secrets
 import sys
@@ -51,6 +55,12 @@ from ongs_ai.prospeccion.importador import importar_prospectos  # noqa: E402
 MINIMO_CONVOCATORIAS_VERIFICADAS_DEFECTO = 20
 TTL_TOKEN_DEMO_DEFECTO = timedelta(hours=12)
 ENTIDAD_DEMO_ID = "demo-abaimar"
+
+# Convocatorias ficticias sembradas por los scripts desechables ya retirados
+# (`demo_semilla_local.py`/`demo_entidad_real.py`) — pendiente desde
+# PROMPT-023 (bandeja del operador). Se retiran aquí, no se borran filas.
+IDS_CONVOCATORIAS_DEMO_FICTICIAS = ("demo-conv-1", "demo-conv-2", "demo-conv-3")
+MOTIVO_RETIRADA_DEMO_FICTICIA = "dato ficticio de demo retirado"
 
 RUTA_CSV_PROSPECTOS_DEFECTO = (
     Path(__file__).resolve().parents[1] / "investigacion" / "asociaciones_maestro.csv"
@@ -96,6 +106,25 @@ def _entidad_demo_abaimar(email_operador: str, *, ahora: datetime) -> Entidad:
     )
 
 
+def _retirar_convocatorias_demo_ficticias(almacen, *, ahora: datetime) -> int:
+    """Marca `demo-conv-1/2/3` (si existen en la base) `DESCARTADA_POR_DOMINIO`
+    — NO se borran filas (asientos/dedupe intactos; las vistas ya ocultan
+    descartadas, ADR-006). Sus Matches quedan como están (histórico
+    inmutable). Idempotente: ya retiradas no se cuentan de nuevo."""
+    retiradas = 0
+    for convocatoria_id in IDS_CONVOCATORIAS_DEMO_FICTICIAS:
+        convocatoria = almacen.obtener_convocatoria(convocatoria_id)
+        if convocatoria is None or convocatoria.estado_ingesta is EstadoIngesta.DESCARTADA_POR_DOMINIO:
+            continue
+        almacen.guardar_convocatoria(
+            dataclasses.replace(
+                convocatoria, estado_ingesta=EstadoIngesta.DESCARTADA_POR_DOMINIO, actualizado_en=ahora
+            )
+        )
+        retiradas += 1
+    return retiradas
+
+
 @dataclass(frozen=True)
 class ResumenPreparacionDemo:
     convocatorias_verificadas_antes: int
@@ -105,6 +134,7 @@ class ResumenPreparacionDemo:
     entidad_id: str
     prospectos_importados: int
     prospectos_aviso: str | None
+    convocatorias_demo_retiradas: int
     token: str
     url_confirmacion_entidad: str
     url_consola: str
@@ -166,6 +196,8 @@ def preparar_demo(
             almacen.guardar_prospecto(prospecto)
         prospectos_importados = len(resultado.prospectos)
 
+    convocatorias_demo_retiradas = _retirar_convocatorias_demo_ficticias(almacen, ahora=ahora)
+
     token = generador_token()
     almacen.crear_token(entidad.entidad_id, _hash_token(token), ahora + ttl_token)
 
@@ -177,6 +209,7 @@ def preparar_demo(
         entidad_id=entidad.entidad_id,
         prospectos_importados=prospectos_importados,
         prospectos_aviso=prospectos_aviso,
+        convocatorias_demo_retiradas=convocatorias_demo_retiradas,
         token=token,
         url_confirmacion_entidad=f"{base_url}/login/confirmar?token={token}",
         url_consola=f"{base_url}/consola",
@@ -276,6 +309,11 @@ def main() -> None:
         print(f"Prospectos: {resumen.prospectos_aviso}")
     else:
         print(f"Prospectos importados: {resumen.prospectos_importados}")
+    if resumen.convocatorias_demo_retiradas:
+        print(
+            f"Convocatorias demo ficticias retiradas ({MOTIVO_RETIRADA_DEMO_FICTICIA}): "
+            f"{resumen.convocatorias_demo_retiradas}"
+        )
 
     print()
     print("=== ACCESO ===")
